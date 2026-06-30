@@ -33,6 +33,26 @@ export default async function ControlsPage() {
     (configMap["email_sender_role"] as string | undefined) ?? "Community Manager",
   );
 
+  // Community notifications config (fallback defaults match config/tiers.ts)
+  const communitySymbolsStarter = String(
+    (configMap["community_signal_symbols_starter"] as string | undefined) ?? "XAU/USD",
+  );
+  const communitySymbolsPlus = String(
+    (configMap["community_signal_symbols_plus"] as string | undefined) ?? "all",
+  );
+  const communitySymbolsPro = String(
+    (configMap["community_signal_symbols_pro"] as string | undefined) ?? "all",
+  );
+  const communityLimitStarter = Number(
+    (configMap["community_whatsapp_daily_limit_starter"] as number | undefined) ?? 1,
+  );
+  const communityLimitPlus = Number(
+    (configMap["community_whatsapp_daily_limit_plus"] as number | undefined) ?? 3,
+  );
+  const communityLimitPro = Number(
+    (configMap["community_whatsapp_daily_limit_pro"] as number | undefined) ?? 5,
+  );
+
   return (
     <>
       <Header title="Controls" />
@@ -125,6 +145,77 @@ export default async function ControlsPage() {
                 configKey="email_sender_role"
                 initialValue={emailSenderRole}
                 placeholder="e.g. Community Manager"
+              />
+            </div>
+          </section>
+
+          {/* Community notifications */}
+          <section>
+            <p
+              className="text-[10px] tracking-widest uppercase mb-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Community Notifications
+            </p>
+            <p
+              className="text-xs mb-4"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Controls which symbols each tier receives in community WhatsApp digests and how many digests per day.
+              Symbols: comma-separated (e.g. <code>XAU/USD,GBP/USD</code>) or <code>all</code>.
+              Changes take effect on the next cron run — no redeploy needed.
+            </p>
+            <div className="space-y-3">
+              <p className="text-[10px] tracking-widest uppercase pt-1" style={{ color: "var(--muted-foreground)" }}>Starter</p>
+              <TextConfigCard
+                label="Symbols (Starter)"
+                description="Comma-separated symbols or 'all'. Default: XAU/USD"
+                configKey="community_signal_symbols_starter"
+                initialValue={communitySymbolsStarter}
+                placeholder="e.g. XAU/USD or all"
+              />
+              <NumberConfigCard
+                label="Max digests / day (Starter)"
+                description="WhatsApp digests per user per 24 h. 0 = disabled."
+                configKey="community_whatsapp_daily_limit_starter"
+                initialValue={communityLimitStarter}
+                min={0}
+                max={10}
+                unit="/ day"
+              />
+              <p className="text-[10px] tracking-widest uppercase pt-2" style={{ color: "var(--muted-foreground)" }}>Plus</p>
+              <TextConfigCard
+                label="Symbols (Plus)"
+                description="Comma-separated symbols or 'all'. Default: all"
+                configKey="community_signal_symbols_plus"
+                initialValue={communitySymbolsPlus}
+                placeholder="e.g. all"
+              />
+              <NumberConfigCard
+                label="Max digests / day (Plus)"
+                description="WhatsApp digests per user per 24 h."
+                configKey="community_whatsapp_daily_limit_plus"
+                initialValue={communityLimitPlus}
+                min={0}
+                max={10}
+                unit="/ day"
+              />
+              <p className="text-[10px] tracking-widest uppercase pt-2" style={{ color: "var(--muted-foreground)" }}>Pro</p>
+              <TextConfigCard
+                label="Symbols (Pro)"
+                description="Comma-separated symbols or 'all'. Default: all"
+                configKey="community_signal_symbols_pro"
+                initialValue={communitySymbolsPro}
+                placeholder="e.g. all"
+              />
+              <NumberConfigCard
+                label="Max digests / day (Pro)"
+                description="WhatsApp digests per user per 24 h."
+                configKey="community_whatsapp_daily_limit_pro"
+                initialValue={communityLimitPro}
+                min={0}
+                max={10}
+                unit="/ day"
               />
             </div>
           </section>

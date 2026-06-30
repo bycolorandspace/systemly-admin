@@ -34,6 +34,8 @@ const ALLOWED_PATHS = new Set([
   "/api/alert/check-price",
   "/api/mt5/sync-history",
   "/api/cron/affiliates-qualify",
+  "/api/cron/email-digest",
+  "/api/cron/email-lifecycle",
 ]);
 
 export async function POST(req: NextRequest) {

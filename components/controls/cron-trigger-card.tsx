@@ -47,6 +47,16 @@ const CRON_JOBS: CronJob[] = [
     description: "Qualify pending referrals and grant earned rewards",
     path: "/api/cron/affiliates-qualify",
   },
+  {
+    label: "Email Digest (hourly batch)",
+    description: "Send daily recap to users whose local time is 8pm right now",
+    path: "/api/cron/email-digest",
+  },
+  {
+    label: "Email Lifecycle Sweep",
+    description: "Day-7/14/30/60/90 lifecycle emails for users at each threshold today",
+    path: "/api/cron/email-lifecycle",
+  },
 ];
 
 interface RunResult {

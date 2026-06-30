@@ -52,3 +52,38 @@ body {
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Doc viewer prose styles ─────────────────────────────────────────────── */
+.doc-prose { color: var(--foreground); line-height: 1.7; }
+
+.doc-h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 1.25rem; color: var(--foreground); }
+.doc-h2 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--foreground); border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+.doc-h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: var(--foreground); }
+.doc-h4 { font-size: 0.875rem; font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; }
+.doc-p  { margin: 0 0 0.875rem; font-size: 0.875rem; color: var(--foreground); }
+
+.doc-link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.doc-link:hover { opacity: 0.8; }
+
+.doc-strong { font-weight: 600; color: var(--foreground); }
+.doc-em { font-style: italic; }
+
+.doc-ul { margin: 0 0 0.875rem 1.25rem; list-style: disc; }
+.doc-ol { margin: 0 0 0.875rem 1.25rem; list-style: decimal; }
+.doc-li { font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--foreground); }
+
+.doc-pre { background: var(--secondary); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin: 0 0 1rem; overflow-x: auto; }
+.doc-code-block { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--foreground); white-space: pre; }
+.doc-code-inline { font-family: ui-monospace, monospace; font-size: 0.8rem; background: var(--secondary); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; color: var(--primary); }
+
+.doc-blockquote { border-left: 3px solid var(--primary); margin: 0 0 1rem; padding: 0.5rem 1rem; background: var(--secondary); border-radius: 0 4px 4px 0; }
+.doc-blockquote p { margin: 0; color: var(--muted-foreground); }
+
+.doc-hr { border: none; border-top: 1px solid var(--border); margin: 1.75rem 0; }
+
+.doc-table-wrap { overflow-x: auto; margin: 0 0 1.25rem; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.doc-thead { background: var(--secondary); }
+.doc-tr:not(:last-child) { border-bottom: 1px solid var(--border); }
+.doc-th { text-align: left; font-weight: 600; padding: 0.5rem 0.75rem; color: var(--muted-foreground); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.doc-td { padding: 0.5rem 0.75rem; color: var(--foreground); vertical-align: top; }

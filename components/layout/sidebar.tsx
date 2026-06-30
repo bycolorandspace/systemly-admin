@@ -12,6 +12,7 @@ import {
   Zap,
   Mail,
   Receipt,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/newsletter", label: "Newsletter", icon: Mail },
   { href: "/costs", label: "Costs", icon: Receipt },
   { href: "/controls", label: "Controls", icon: Settings2 },
+  { href: "/docs", label: "Docs", icon: BookOpen },
 ];
 
 export function Sidebar({ userEmail }: { userEmail: string }) {
