@@ -13,6 +13,7 @@ import {
   Mail,
   Receipt,
   BookOpen,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase";
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/revenue", label: "Revenue", icon: CreditCard },
   { href: "/signals", label: "Signals", icon: TrendingUp },
+  { href: "/strategies", label: "Strategies", icon: GitBranch },
   { href: "/newsletter", label: "Newsletter", icon: Mail },
   { href: "/costs", label: "Costs", icon: Receipt },
   { href: "/controls", label: "Controls", icon: Settings2 },
