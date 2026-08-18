@@ -13,6 +13,10 @@ export async function GET(
 }
 
 const VALID_TIERS = ["free", "starter", "plus", "pro"] as const;
+// A trial can only grant a paid tier: "free" would be a downgrade dressed up
+// as a reward, and the main app's getEffectiveTier takes the higher of
+// trial_tier and current_tier anyway, so it would be a no-op.
+const VALID_TRIAL_TIERS = ["starter", "plus", "pro"] as const;
 
 export async function PATCH(
   req: NextRequest,
@@ -26,6 +30,21 @@ export async function PATCH(
   if ("trialEndsAt" in body) {
     if (!body.trialEndsAt) return NextResponse.json({ error: "trialEndsAt must be a date string" }, { status: 400 });
     updateFields.trial_ends_at = body.trialEndsAt;
+  }
+
+  if ("trialTier" in body) {
+    if (body.trialTier === null) {
+      // Explicit clear: revoke the trial outright.
+      updateFields.trial_tier = null;
+      updateFields.trial_ends_at = null;
+      updateFields.trial_source = null;
+    } else if (!VALID_TRIAL_TIERS.includes(body.trialTier)) {
+      return NextResponse.json({ error: "Invalid trialTier" }, { status: 400 });
+    } else {
+      updateFields.trial_tier = body.trialTier;
+      updateFields.trial_source = body.trialSource ?? "admin";
+      updateFields.trial_granted_at = new Date().toISOString();
+    }
   }
 
   if ("tier" in body) {

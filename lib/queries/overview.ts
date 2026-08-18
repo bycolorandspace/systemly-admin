@@ -8,8 +8,15 @@ const TIER_PRICES: Record<string, number> = {
 };
 
 export async function getSystemHealth(supabase: SupabaseClient) {
-  const [mt5Count, alertCount, sharingConfig, tradingConfig, signalsConfig, feedConfig] =
-    await Promise.all([
+  const [
+    mt5Count,
+    alertCount,
+    sharingConfig,
+    tradingConfig,
+    signalsConfig,
+    feedConfig,
+    telegramConfig,
+  ] = await Promise.all([
       supabase
         .from("mt5_connections")
         .select("*", { count: "exact", head: true })
@@ -38,6 +45,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "community_feed")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "telegram_community_signals")
+        .maybeSingle(),
     ]);
 
   return {
@@ -54,6 +66,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
       true,
     communityFeedPaused:
       (feedConfig.data?.value as { paused?: boolean } | null)?.paused ??
+      true,
+    // Defaults to paused: the bot token / chat id must be configured and
+    // verified via /api/debug/telegram-health before signals start posting.
+    telegramCommunityPaused:
+      (telegramConfig.data?.value as { paused?: boolean } | null)?.paused ??
       true,
   };
 }

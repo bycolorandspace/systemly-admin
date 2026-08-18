@@ -61,31 +61,50 @@ export async function getWinRateTrend(supabase: SupabaseClient) {
 }
 
 export async function getStrategyPerformance(supabase: SupabaseClient) {
+  // `strategy_usage_logs.outcome`/`.pips` are never updated after insert
+  // anywhere in the codebase, so that table can't answer "how is this
+  // strategy actually performing" — it's always 0 wins / 0 pips. The
+  // 15-min check-outcomes cron *does* reliably resolve `market_signal`
+  // rows (outcome/pips_gained_lost) for every closed signal, so that's
+  // the real source of truth for strategy performance.
   const thirtyDaysAgo = daysAgo(30).toISOString();
 
   const { data } = await supabase
-    .from("strategy_usage_logs")
-    .select("strategy_id, outcome, pips_result, strategies(name)")
+    .from("market_signal")
+    .select("strategy_id, outcome, pips_gained_lost")
+    .eq("status", "closed")
+    .not("strategy_id", "is", null)
     .gte("created_at", thirtyDaysAgo);
 
+  const rows = data ?? [];
   const map: Record<
     string,
-    { name: string; total: number; wins: number; totalPips: number }
+    { total: number; wins: number; totalPips: number }
   > = {};
 
-  for (const r of data ?? []) {
+  for (const r of rows) {
     const sid = r.strategy_id as string;
-    const stratName =
-      (r.strategies as { name?: string } | null)?.name ?? sid;
-    if (!map[sid]) map[sid] = { name: stratName, total: 0, wins: 0, totalPips: 0 };
+    if (!map[sid]) map[sid] = { total: 0, wins: 0, totalPips: 0 };
     map[sid].total++;
-    if ((r.outcome as string) === "win") map[sid].wins++;
-    map[sid].totalPips += Number(r.pips_result ?? 0);
+    if ((r.outcome as string | null)?.startsWith("TP")) map[sid].wins++;
+    map[sid].totalPips += Number(r.pips_gained_lost ?? 0);
   }
 
-  return Object.values(map)
-    .map((s) => ({
-      name: s.name,
+  // strategy_id on market_signal is a plain TEXT column (no FK), so
+  // names have to be resolved with a separate lookup rather than a
+  // PostgREST embed.
+  const strategyIds = Object.keys(map);
+  const { data: strategies } =
+    strategyIds.length > 0
+      ? await supabase.from("strategies").select("id, name").in("id", strategyIds)
+      : { data: [] as { id: string; name: string }[] };
+  const nameMap = Object.fromEntries(
+    (strategies ?? []).map((s) => [s.id as string, s.name as string]),
+  );
+
+  return Object.entries(map)
+    .map(([sid, s]) => ({
+      name: nameMap[sid] ?? sid,
       signals: s.total,
       winRate: s.total > 0 ? (s.wins / s.total) * 100 : 0,
       avgPips: s.total > 0 ? s.totalPips / s.total : 0,
@@ -146,6 +165,9 @@ export async function getBestSignalThisWeek(supabase: SupabaseClient) {
 }
 
 export async function getCommunitySignals(supabase: SupabaseClient) {
+  // `outcome`/`pips_gained_lost` are resolved for essentially every closed
+  // signal by the 15-min check-outcomes cron; `manual_outcome`/`manual_pnl_pips`
+  // are sparse, self-reported journaling fields and understate real coverage.
   const thirtyDaysAgo = daysAgo(30).toISOString();
   const sevenDaysAgo = daysAgo(7).toISOString();
   const oneDayAgo = daysAgo(1).toISOString();
@@ -153,9 +175,10 @@ export async function getCommunitySignals(supabase: SupabaseClient) {
   const { data } = await supabase
     .from("market_signal")
     .select(
-      "id, symbol, direction, created_at, status, outcome, pips_gained_lost, manual_outcome, manual_pnl_pips, confidence_score",
+      "id, symbol, direction, created_at, status, outcome, pips_gained_lost, confidence_score",
     )
     .eq("source", "community")
+    .neq("status", "expired")
     .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -165,8 +188,8 @@ export async function getCommunitySignals(supabase: SupabaseClient) {
   const today = rows.filter((r) => (r.created_at as string) >= oneDayAgo).length;
   const week = rows.filter((r) => (r.created_at as string) >= sevenDaysAgo).length;
   const open = rows.filter((r) => r.status === "open").length;
-  const resolved = rows.filter((r) => r.manual_outcome);
-  const wins = resolved.filter((r) => (r.manual_outcome as string).startsWith("TP")).length;
+  const resolved = rows.filter((r) => r.status === "closed");
+  const wins = resolved.filter((r) => (r.outcome as string)?.startsWith("TP")).length;
   const winRate = resolved.length > 0 ? (wins / resolved.length) * 100 : null;
 
   const symMap: Record<string, { total: number; wins: number; totalPips: number; resolved: number }> = {};
@@ -174,11 +197,11 @@ export async function getCommunitySignals(supabase: SupabaseClient) {
     const sym = r.symbol as string;
     if (!symMap[sym]) symMap[sym] = { total: 0, wins: 0, totalPips: 0, resolved: 0 };
     symMap[sym].total++;
-    const o = r.manual_outcome as string | null;
-    if (o) {
+    if (r.status === "closed") {
+      const o = r.outcome as string | null;
       symMap[sym].resolved++;
-      if (o.startsWith("TP")) symMap[sym].wins++;
-      symMap[sym].totalPips += Number(r.manual_pnl_pips ?? 0);
+      if (o?.startsWith("TP")) symMap[sym].wins++;
+      symMap[sym].totalPips += Number(r.pips_gained_lost ?? 0);
     }
   }
   const bySymbol = Object.entries(symMap)
@@ -196,8 +219,8 @@ export async function getCommunitySignals(supabase: SupabaseClient) {
     direction: r.direction as string,
     createdAt: r.created_at as string,
     status: r.status as string,
-    outcome: ((r.manual_outcome ?? r.outcome) as string | null),
-    pips: ((r.manual_pnl_pips ?? r.pips_gained_lost) as number | null),
+    outcome: r.outcome as string | null,
+    pips: r.pips_gained_lost as number | null,
     confidence: r.confidence_score as number | null,
   }));
 
@@ -208,13 +231,27 @@ export async function getCommunitySignals(supabase: SupabaseClient) {
   };
 }
 
-export async function getSymbolPerformance(supabase: SupabaseClient) {
+/**
+ * Per-symbol signal volume/performance. Pass `strategyId` to scope this to
+ * one strategy — e.g. to see whether a specific symbol behaves differently
+ * from a multi-symbol strategy's group performance (the Tuning Dashboard's
+ * primary use of this function).
+ */
+export async function getSymbolPerformance(
+  supabase: SupabaseClient,
+  strategyId?: string,
+) {
   const thirtyDaysAgo = daysAgo(30).toISOString();
 
-  const { data } = await supabase
+  let query = supabase
     .from("market_signal")
-    .select("symbol, manual_outcome, manual_pnl_pips")
+    .select("symbol, status, outcome, pips_gained_lost")
+    .neq("status", "expired")
     .gte("created_at", thirtyDaysAgo);
+
+  if (strategyId) query = query.eq("strategy_id", strategyId);
+
+  const { data } = await query;
 
   const map: Record<
     string,
@@ -225,11 +262,11 @@ export async function getSymbolPerformance(supabase: SupabaseClient) {
     const sym = r.symbol as string;
     if (!map[sym]) map[sym] = { total: 0, wins: 0, totalPips: 0, resolved: 0 };
     map[sym].total++;
-    const o = r.manual_outcome as string | null;
-    if (o) {
+    if (r.status === "closed") {
+      const o = r.outcome as string | null;
       map[sym].resolved++;
-      if (o.startsWith("TP")) map[sym].wins++;
-      map[sym].totalPips += Number(r.manual_pnl_pips ?? 0);
+      if (o?.startsWith("TP")) map[sym].wins++;
+      map[sym].totalPips += Number(r.pips_gained_lost ?? 0);
     }
   }
 

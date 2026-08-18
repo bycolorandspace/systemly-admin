@@ -14,6 +14,8 @@ import {
   Receipt,
   BookOpen,
   GitBranch,
+  Gift,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase";
@@ -25,6 +27,8 @@ const NAV_ITEMS = [
   { href: "/signals", label: "Signals", icon: TrendingUp },
   { href: "/strategies", label: "Strategies", icon: GitBranch },
   { href: "/newsletter", label: "Newsletter", icon: Mail },
+  { href: "/outreach", label: "Outreach", icon: Send },
+  { href: "/trials", label: "Trial links", icon: Gift },
   { href: "/costs", label: "Costs", icon: Receipt },
   { href: "/controls", label: "Controls", icon: Settings2 },
   { href: "/docs", label: "Docs", icon: BookOpen },

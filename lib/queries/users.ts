@@ -13,7 +13,7 @@ export async function getUsersList(
   let query = supabase
     .from("user_profiles")
     .select(
-      `id, full_name, email, current_tier, created_at`,
+      `id, full_name, email, current_tier, created_at, onboarding_data`,
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
@@ -70,6 +70,12 @@ export async function getUsersList(
     id: u.id as string,
     fullName: (u.full_name as string) || "—",
     email: (u.email as string) || "—",
+    // Self-reported answer to "How did you hear about Systemly?", asked on the
+    // last onboarding step. Null for anyone who signed up and never finished
+    // onboarding, which is a real and common state, not a data error.
+    referralSource:
+      ((u.onboarding_data as { referral_source?: string } | null)
+        ?.referral_source ?? null),
     tier: (u.current_tier as string) || "free",
     createdAt: u.created_at as string,
     lifetimeSignals: signalMap[u.id as string] ?? 0,
@@ -114,5 +120,103 @@ export async function getUserDetail(supabase: SupabaseClient, userId: string) {
     usage: usageRows.data ?? [],
     subscriptions: subscriptions.data ?? [],
     academyProgress: academyProgress.data ?? [],
+  };
+}
+
+export interface AcquisitionSource {
+  source: string;
+  count: number;
+  /** Share of the users in this window who actually answered the question. */
+  pct: number;
+}
+
+export interface AcquisitionWindow {
+  /** Every profile created in the window, answered or not. */
+  signups: number;
+  answered: number;
+  unanswered: number;
+  sources: AcquisitionSource[];
+}
+
+export interface AcquisitionBreakdown {
+  d7: AcquisitionWindow;
+  d30: AcquisitionWindow;
+  all: AcquisitionWindow;
+}
+
+const ACQUISITION_PAGE_SIZE = 1000;
+
+/**
+ * Self-reported acquisition mix from the last onboarding step, "How did you
+ * hear about Systemly?".
+ *
+ * Onboarding captures no country or region, and `user_profiles.timezone` is
+ * unpopulated, so this is the only "where did they come from" signal we hold.
+ *
+ * Percentages are share of *answered*, not share of signups: anyone who quit
+ * onboarding before the last step has no source, and folding them into the
+ * denominator would understate every channel by the same arbitrary amount.
+ * The unanswered count is returned separately so the UI can show the gap.
+ */
+export async function getAcquisitionBreakdown(
+  supabase: SupabaseClient
+): Promise<AcquisitionBreakdown> {
+  // Two tiny columns, paged to completion — PostgREST caps a single response
+  // at 1000 rows, so a plain select would silently truncate the all-time
+  // window once the account count passes it.
+  const rows: { created_at: string; referral_source: string | null }[] = [];
+  for (let page = 0; ; page++) {
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("created_at, referral_source:onboarding_data->>referral_source")
+      .order("created_at", { ascending: false })
+      .range(page * ACQUISITION_PAGE_SIZE, (page + 1) * ACQUISITION_PAGE_SIZE - 1);
+
+    if (error) {
+      console.error("[getAcquisitionBreakdown] fetch failed:", error.message);
+      break;
+    }
+    if (!data?.length) break;
+
+    rows.push(...(data as typeof rows));
+    if (data.length < ACQUISITION_PAGE_SIZE) break;
+  }
+
+  const cutoff7 = daysAgo(7).getTime();
+  const cutoff30 = daysAgo(30).getTime();
+
+  const build = (since: number): AcquisitionWindow => {
+    const inWindow = rows.filter(
+      (r) => new Date(r.created_at).getTime() >= since
+    );
+    const counts = new Map<string, number>();
+
+    for (const r of inWindow) {
+      const source = r.referral_source;
+      if (!source) continue;
+      counts.set(source, (counts.get(source) ?? 0) + 1);
+    }
+
+    const answered = [...counts.values()].reduce((a, b) => a + b, 0);
+    const sources = [...counts.entries()]
+      .map(([source, count]) => ({
+        source,
+        count,
+        pct: answered > 0 ? (count / answered) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
+
+    return {
+      signups: inWindow.length,
+      answered,
+      unanswered: inWindow.length - answered,
+      sources,
+    };
+  };
+
+  return {
+    d7: build(cutoff7),
+    d30: build(cutoff30),
+    all: build(0),
   };
 }

@@ -38,6 +38,7 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
   const [loading, setLoading] = useState(true);
   const [extendingTrial, setExtendingTrial] = useState(false);
   const [trialMsg, setTrialMsg] = useState<string | null>(null);
+  const [trialTier, setTrialTier] = useState<string>("plus");
   const [overrideTier, setOverrideTier] = useState<string>("");
   const [tierSaving, setTierSaving] = useState(false);
   const [tierMsg, setTierMsg] = useState<string | null>(null);
@@ -45,7 +46,12 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
   useEffect(() => {
     fetch(`/api/admin/users/${userId}`)
       .then((r) => r.json())
-      .then((d) => { setData(d); setOverrideTier(d?.profile?.current_tier ?? "free"); setLoading(false); });
+      .then((d) => {
+        setData(d);
+        setOverrideTier(d?.profile?.current_tier ?? "free");
+        setTrialTier(d?.profile?.trial_tier ?? "plus");
+        setLoading(false);
+      });
   }, [userId]);
 
   async function saveTier() {
@@ -61,6 +67,18 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
   }
 
   const profile = data?.profile;
+  // Answers from the onboarding questionnaire, including how they found
+  // Systemly. Absent for anyone who signed up and never finished onboarding.
+  const onboarding = profile?.onboarding_data as
+    | {
+        goal?: string;
+        experience?: string;
+        skill?: string;
+        capital?: string;
+        referral_source?: string;
+      }
+    | null
+    | undefined;
   const tier = overrideTier || profile?.current_tier || "free";
   const limits = TIER_LIMITS[tier] ?? TIER_LIMITS.free;
   const activeSub = (data?.subscriptions ?? []).find((s: any) => s.status === "active" || s.status === "trialing");
@@ -79,16 +97,36 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trialEndsAt: current.toISOString() }),
+      body: JSON.stringify({ trialEndsAt: current.toISOString(), trialTier }),
     });
     if (res.ok) {
       setData((prev: any) => ({
         ...prev,
-        profile: { ...prev.profile, trial_ends_at: current.toISOString() },
+        profile: { ...prev.profile, trial_ends_at: current.toISOString(), trial_tier: trialTier },
       }));
-      setTrialMsg(`Trial extended to ${formatDate(current.toISOString())}`);
+      setTrialMsg(`${trialTier} trial now runs to ${formatDate(current.toISOString())}`);
     } else {
       setTrialMsg("Failed to extend trial.");
+    }
+    setExtendingTrial(false);
+  }
+
+  async function revokeTrial() {
+    setExtendingTrial(true);
+    setTrialMsg(null);
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trialTier: null }),
+    });
+    if (res.ok) {
+      setData((prev: any) => ({
+        ...prev,
+        profile: { ...prev.profile, trial_ends_at: null, trial_tier: null },
+      }));
+      setTrialMsg("Trial revoked.");
+    } else {
+      setTrialMsg("Failed to revoke trial.");
     }
     setExtendingTrial(false);
   }
@@ -163,6 +201,36 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                     {profile?.created_at ? formatDate(profile.created_at) : "—"}
                   </p>
                 </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Found via</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    {onboarding?.referral_source || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Goal</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    {onboarding?.goal || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Experience</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    {onboarding?.experience || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Confidence</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    {onboarding?.skill || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Capital</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    {onboarding?.capital || "—"}
+                  </p>
+                </div>
                 {nextBillingDate && (
                   <div>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Next Billing</p>
@@ -204,8 +272,36 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                     {trialEndsAt ? formatDate(trialEndsAt) : "No active trial"}
                   </p>
                 </div>
+                <div className="text-right">
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Granted tier</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    {profile?.trial_tier ?? (trialEndsAt ? "pro (legacy)" : "\u2014")}
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  Grant
+                </label>
+                <select
+                  value={trialTier}
+                  onChange={(e) => setTrialTier(e.target.value)}
+                  className="px-2 py-1.5 rounded text-xs"
+                  style={{
+                    background: "var(--secondary)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  <option value="starter">Starter</option>
+                  <option value="plus">Plus</option>
+                  <option value="pro">Pro</option>
+                </select>
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  for
+                </span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
                 {TRIAL_EXTENSIONS.map(({ label, days }) => (
                   <button
                     key={days}
@@ -221,7 +317,22 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                     {label}
                   </button>
                 ))}
+                <button
+                  onClick={revokeTrial}
+                  disabled={extendingTrial || !trialEndsAt}
+                  className="px-3 py-1.5 rounded text-xs font-medium disabled:opacity-40 transition-opacity"
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    color: "var(--destructive)",
+                  }}
+                >
+                  Revoke
+                </button>
               </div>
+              <p className="text-xs mt-2" style={{ color: "var(--muted-foreground)" }}>
+                The user gets whichever is higher, this trial tier or the tier they pay for.
+              </p>
               {trialMsg && (
                 <p className="text-xs mt-2" style={{ color: "var(--muted-foreground)" }}>
                   {trialMsg}

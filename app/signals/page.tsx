@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
 import {
   getSignalVolumeTrend,
@@ -155,12 +156,21 @@ export default async function SignalsPage() {
 
         {/* Community Signals */}
         <div className="border-t" style={{ borderColor: "var(--border)" }}>
-          <p
-            className="text-[10px] tracking-widest uppercase px-6 py-4 border-b"
-            style={{ color: "var(--muted-foreground)", borderColor: "var(--border)" }}
+          <div
+            className="flex items-center justify-between px-6 py-4 border-b"
+            style={{ borderColor: "var(--border)" }}
           >
-            Community Signals (30d)
-          </p>
+            <p className="text-[10px] tracking-widest uppercase" style={{ color: "var(--muted-foreground)" }}>
+              Community Signals (30d)
+            </p>
+            <Link
+              href="/signals/community"
+              className="text-xs hover:underline"
+              style={{ color: "var(--primary)" }}
+            >
+              Improvement Report →
+            </Link>
+          </div>
           {/* Stats strip */}
           <div
             className="grid grid-cols-5 divide-x border-b"

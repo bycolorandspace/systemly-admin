@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { formatDate } from "@/lib/utils";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { UserDetailDrawer } from "./user-detail-drawer";
+import { referralSourceColor } from "@/lib/referral-sources";
 
 const TIER_COLORS: Record<string, string> = {
   free: "#71717a",
@@ -16,6 +17,8 @@ interface User {
   id: string;
   fullName: string;
   email: string;
+  /** How they found Systemly. Null until onboarding is finished. */
+  referralSource: string | null;
   tier: string;
   createdAt: string;
   lifetimeSignals: number;
@@ -98,7 +101,7 @@ export function UsersTable({ initialUsers, initialTotal }: {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Name", "Email", "Tier", "Joined", "Signals", "Last Active", "MT5"].map((h) => (
+              {["Name", "Email", "Found via", "Tier", "Joined", "Signals", "Last Active", "MT5"].map((h) => (
                 <th
                   key={h}
                   className="text-left px-6 py-3 text-[10px] font-medium tracking-widest uppercase"
@@ -122,6 +125,23 @@ export function UsersTable({ initialUsers, initialTotal }: {
                 </td>
                 <td className="px-6 py-3.5" style={{ color: "var(--muted-foreground)" }}>
                   {user.email}
+                </td>
+                <td className="px-6 py-3.5">
+                  {user.referralSource ? (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                      style={{
+                        background: `${referralSourceColor(user.referralSource)}20`,
+                        color: referralSourceColor(user.referralSource),
+                      }}
+                    >
+                      {user.referralSource}
+                    </span>
+                  ) : (
+                    <span className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>
+                      —
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-3.5">
                   <span

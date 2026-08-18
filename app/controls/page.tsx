@@ -21,7 +21,7 @@ export default async function ControlsPage() {
     (allConfigs ?? []).map((c) => [c.key, c.value]),
   );
   const defaultTrialDays = Number(
-    (configMap["default_trial_days"] as number | undefined) ?? 7,
+    (configMap["default_trial_days"] as number | undefined) ?? 3,
   );
   const shareExpiryHours = Number(
     (configMap["share_expiry_hours"] as number | undefined) ?? 168,
@@ -53,6 +53,15 @@ export default async function ControlsPage() {
     (configMap["community_whatsapp_daily_limit_pro"] as number | undefined) ?? 5,
   );
 
+  // Signal engine (fallbacks match config/ai-models.ts and
+  // config/strategy-scanning.ts in the main app)
+  const communityAiModel = String(
+    (configMap["community_ai_model"] as string | undefined) ?? "deepseek",
+  );
+  const signalAlertMinConfidence = Number(
+    (configMap["signal_alert_min_confidence"] as number | undefined) ?? 60,
+  );
+
   return (
     <>
       <Header title="Controls" />
@@ -81,7 +90,7 @@ export default async function ControlsPage() {
               />
               <ToggleCard
                 label="Community Signals"
-                description="Runs AI analysis on 15 symbols 5× daily (weekdays). ~$3.75/day in Anthropic credits when active."
+                description="Runs AI analysis on 15 symbols 4× daily (weekdays, 30 min before the London and NY opens). Cost depends on the provider set below."
                 paused={health.communitySignalsPaused}
                 configKey="community_signals"
               />
@@ -90,6 +99,12 @@ export default async function ControlsPage() {
                 description="Shows the /feed page and Share-to-Feed buttons. No AI credits — display only."
                 paused={health.communityFeedPaused}
                 configKey="community_feed"
+              />
+              <ToggleCard
+                label="Telegram Broadcast"
+                description="Posts each batch of community signals to the Telegram channel. Needs TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID — verify with /api/debug/telegram-health first."
+                paused={health.telegramCommunityPaused}
+                configKey="telegram_community_signals"
               />
             </div>
           </section>
@@ -105,7 +120,7 @@ export default async function ControlsPage() {
             <div className="space-y-3">
               <NumberConfigCard
                 label="Default Trial Length"
-                description="Days granted to new signups — main app reads this at registration"
+                description="Days granted via Stripe trial at checkout — main app reads this live"
                 configKey="default_trial_days"
                 initialValue={defaultTrialDays}
                 min={0}
@@ -216,6 +231,43 @@ export default async function ControlsPage() {
                 min={0}
                 max={10}
                 unit="/ day"
+              />
+            </div>
+          </section>
+
+          {/* Signal engine */}
+          <section>
+            <p
+              className="text-[10px] tracking-widest uppercase mb-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Signal Engine
+            </p>
+            <p
+              className="text-xs mb-4"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Systemly shows every setup it finds — there is no confidence floor
+              hiding signals from users. These control which provider generates
+              community signals and how good a setup has to be before it
+              interrupts someone with an alert.
+            </p>
+            <div className="space-y-3">
+              <TextConfigCard
+                label="Community AI Provider"
+                description="Which model generates community signals: deepseek (cheap, default), claude (premium), or gemini. Switch to claude if DeepSeek is degraded — takes effect on the next cron run, no redeploy."
+                configKey="community_ai_model"
+                initialValue={communityAiModel}
+                placeholder="deepseek | claude | gemini"
+              />
+              <NumberConfigCard
+                label="Alert Threshold"
+                description="Minimum confidence before a signal triggers a push / WhatsApp / Telegram alert. Does NOT hide anything — every signal still appears in the app. 0 = alert on everything."
+                configKey="signal_alert_min_confidence"
+                initialValue={signalAlertMinConfidence}
+                min={0}
+                max={100}
+                unit="score"
               />
             </div>
           </section>
