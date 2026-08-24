@@ -16,6 +16,8 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     signalsConfig,
     feedConfig,
     telegramConfig,
+    newScanLoadingUxConfig,
+    scanLoadingSplitPanelConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -50,6 +52,16 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "telegram_community_signals")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "new_scan_loading_ux")
+        .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "scan_loading_split_panel")
+        .maybeSingle(),
     ]);
 
   return {
@@ -72,6 +84,15 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     telegramCommunityPaused:
       (telegramConfig.data?.value as { paused?: boolean } | null)?.paused ??
       true,
+    // Defaults to paused, matching FEATURES.newScanLoadingUx in the main app.
+    // Individual testers do not need this: they override per browser with
+    // ?ff:newScanLoadingUx=on. This toggle is the global rollout switch.
+    newScanLoadingUxPaused:
+      (newScanLoadingUxConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? true,
+    scanLoadingSplitPanelPaused:
+      (scanLoadingSplitPanelConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? true,
   };
 }
 
