@@ -87,7 +87,7 @@ export async function getUsersList(
 }
 
 export async function getUserDetail(supabase: SupabaseClient, userId: string) {
-  const [profile, signals, usageRows, subscriptions, academyProgress] =
+  const [profile, signals, usageRows, subscriptions] =
     await Promise.all([
       supabase.from("user_profiles").select("*").eq("id", userId).single(),
       supabase
@@ -108,10 +108,6 @@ export async function getUserDetail(supabase: SupabaseClient, userId: string) {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(5),
-      supabase
-        .from("academy_user_progress")
-        .select("course_id, completed_lessons, total_lessons, completed_at")
-        .eq("user_id", userId),
     ]);
 
   return {
@@ -119,7 +115,6 @@ export async function getUserDetail(supabase: SupabaseClient, userId: string) {
     signals: signals.data ?? [],
     usage: usageRows.data ?? [],
     subscriptions: subscriptions.data ?? [],
-    academyProgress: academyProgress.data ?? [],
   };
 }
 
