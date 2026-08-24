@@ -95,6 +95,18 @@ export default async function ControlsPage() {
                 configKey="community_signals"
               />
               <ToggleCard
+                label="New Scan Loading UX"
+                description="Switches every user to the rebuilt scan loading screen and the phase 2 explanation skeletons. Testers can preview it per browser with ?ff:newScanLoadingUx=on without turning it on here. Takes up to 60s to take effect."
+                paused={health.newScanLoadingUxPaused}
+                configKey="new_scan_loading_ux"
+              />
+              <ToggleCard
+                label="Scan Loading: Split Panel"
+                description="Only applies when New Scan Loading UX is on. Off uses the page-shaped skeleton, on uses the progress rail beside a preview. A comparison switch, not a rollout one."
+                paused={health.scanLoadingSplitPanelPaused}
+                configKey="scan_loading_split_panel"
+              />
+              <ToggleCard
                 label="Community Feed"
                 description="Shows the /feed page and Share-to-Feed buttons. No AI credits — display only."
                 paused={health.communityFeedPaused}
