@@ -36,6 +36,7 @@ const ALLOWED_PATHS = new Set([
   "/api/cron/affiliates-qualify",
   "/api/cron/email-digest",
   "/api/cron/email-lifecycle",
+  "/api/cron/feed-health-digest",
 ]);
 
 export async function POST(req: NextRequest) {
