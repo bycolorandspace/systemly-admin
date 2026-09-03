@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AcademyBrief } from "@/components/users/academy-brief";
 import { X, ExternalLink } from "lucide-react";
 import { formatDate, formatGBP } from "@/lib/utils";
 
@@ -374,6 +375,11 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                   </div>
                 );
               })}
+            </div>
+
+            {/* Academy: the brief version. Full report lives at /academy. */}
+            <div className="px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <AcademyBrief data={data?.academy ?? null} />
             </div>
 
             {/* Recent signals */}

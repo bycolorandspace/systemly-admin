@@ -7,6 +7,8 @@ import {
   getAnthropicVolume,
   getCostBreakdown,
 } from "@/lib/queries/overview";
+import { getEngagementReport } from "@/lib/queries/engagement";
+import { EngagementStrip } from "@/components/engagement/engagement-strip";
 import { KpiStrip } from "@/components/overview/kpi-strip";
 import { RevenueStreams } from "@/components/overview/revenue-streams";
 import { CostBreakdown } from "@/components/overview/cost-breakdown";
@@ -20,7 +22,7 @@ export const revalidate = 60;
 export default async function OverviewPage() {
   const supabase = createAdminClient();
 
-  const [health, growth, revenue, signals, anthropic, costs] =
+  const [health, growth, revenue, signals, anthropic, costs, engagement] =
     await Promise.all([
       getSystemHealth(supabase),
       getGrowthKPIs(supabase),
@@ -28,6 +30,9 @@ export default async function OverviewPage() {
       getSignalIntelligence(supabase),
       getAnthropicVolume(supabase),
       getCostBreakdown(supabase),
+      // Fetched over HTTP from the main app rather than queried here: the
+      // funnel and return-rate definitions live in one place on purpose.
+      getEngagementReport(),
     ]);
 
   return (
@@ -55,6 +60,7 @@ export default async function OverviewPage() {
 
         <SystemHealthRail data={health} />
         <GrowthStrip data={growth} />
+        <EngagementStrip data={engagement} />
         <SignalStrip
           data={{
             ...signals,
