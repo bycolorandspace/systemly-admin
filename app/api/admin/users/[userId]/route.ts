@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getUserDetail } from "@/lib/queries/users";
+import { getAcademyUserBrief } from "@/lib/queries/engagement";
 
 export async function GET(
   _req: NextRequest,
@@ -8,8 +9,15 @@ export async function GET(
 ) {
   const { userId } = await params;
   const supabase = createAdminClient();
-  const data = await getUserDetail(supabase, userId);
-  return NextResponse.json(data);
+  // Academy progress lives in a different Supabase project, reachable only
+  // through the main app, so it is fetched alongside rather than joined.
+  // `null` when that call fails: the drawer renders without the block rather
+  // than showing a learner as having done nothing.
+  const [data, academy] = await Promise.all([
+    getUserDetail(supabase, userId),
+    getAcademyUserBrief(userId),
+  ]);
+  return NextResponse.json({ ...data, academy });
 }
 
 const VALID_TIERS = ["free", "starter", "plus", "pro"] as const;
