@@ -53,6 +53,21 @@ export default async function ControlsPage() {
     (configMap["community_whatsapp_daily_limit_pro"] as number | undefined) ?? 5,
   );
 
+  // Per-tier signal allowances. Fallbacks match TIER_CONFIG in the main app's
+  // config/tiers.ts. -1 means unlimited, which is how Pro ships.
+  const signalsFree = Number(
+    (configMap["signals_per_month_free"] as number | undefined) ?? 12,
+  );
+  const signalsStarter = Number(
+    (configMap["signals_per_month_starter"] as number | undefined) ?? 30,
+  );
+  const signalsPlus = Number(
+    (configMap["signals_per_month_plus"] as number | undefined) ?? 60,
+  );
+  const signalsPro = Number(
+    (configMap["signals_per_month_pro"] as number | undefined) ?? -1,
+  );
+
   // Signal engine (fallbacks match config/ai-models.ts and
   // config/strategy-scanning.ts in the main app)
   const communityAiModel = String(
@@ -107,6 +122,18 @@ export default async function ControlsPage() {
                 configKey="scan_loading_split_panel"
               />
               <ToggleCard
+                label="New Signal Flow"
+                description="Switches /scans/new to the rebuilt one-screen flow and adds the first-signal step at the end of onboarding. Off keeps the current four-step form and ends onboarding on /scans/new. Testers can preview it per browser with ?ff:newScanFlow=on without turning it on here. Takes up to 60s to take effect."
+                paused={health.newScanFlowPaused}
+                configKey="new_scan_flow"
+              />
+              <ToggleCard
+                label="Academy Roadmap Step"
+                description="The onboarding step that suggests a few Academy courses from the user's 'what trips you up most' answer and saves them to favourites on one press. LIVE by default, unlike the flags above: this is a kill switch for when the academy database is unreachable, not a rollout. Off removes the step from onboarding entirely. Takes up to 60s to take effect."
+                paused={health.academyRoadmapPaused}
+                configKey="academy_roadmap"
+              />
+              <ToggleCard
                 label="Community Feed"
                 description="Shows the /feed page and Share-to-Feed buttons. No AI credits — display only."
                 paused={health.communityFeedPaused}
@@ -132,7 +159,7 @@ export default async function ControlsPage() {
             <div className="space-y-3">
               <NumberConfigCard
                 label="Default Trial Length"
-                description="Days granted via Stripe trial at checkout — main app reads this live"
+                description="Days granted via Stripe trial at checkout. Main app reads this live and words every CTA from it: 3 reads as 'Start 3 day access', 2 or fewer as '48 hour'."
                 configKey="default_trial_days"
                 initialValue={defaultTrialDays}
                 min={0}
@@ -146,6 +173,64 @@ export default async function ControlsPage() {
                 initialValue={shareExpiryHours}
                 min={1}
                 unit="hours"
+              />
+            </div>
+          </section>
+
+          {/* Tier quotas */}
+          <section>
+            <p
+              className="text-[10px] tracking-widest uppercase mb-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Tier Quotas
+            </p>
+            <p
+              className="text-xs mb-4"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              On-demand signals each plan gets per calendar month. The main app
+              reads these live, so a change here takes effect within a minute
+              with no redeploy. Enter <code>-1</code> for unlimited. Every
+              surface that quotes the number reads it from here, including the
+              usage bar, the warning banner and the wall.
+            </p>
+            <div className="space-y-3">
+              <NumberConfigCard
+                label="Signals / month (Free)"
+                description="Default: 12, shown to users as up to 2 a day."
+                configKey="signals_per_month_free"
+                initialValue={signalsFree}
+                min={-1}
+                max={10000}
+                unit="/ month"
+              />
+              <NumberConfigCard
+                label="Signals / month (Starter)"
+                description="Default: 30, shown to users as up to 1 a day."
+                configKey="signals_per_month_starter"
+                initialValue={signalsStarter}
+                min={-1}
+                max={10000}
+                unit="/ month"
+              />
+              <NumberConfigCard
+                label="Signals / month (Plus)"
+                description="Default: 60, shown to users as up to 2 a day."
+                configKey="signals_per_month_plus"
+                initialValue={signalsPlus}
+                min={-1}
+                max={10000}
+                unit="/ month"
+              />
+              <NumberConfigCard
+                label="Signals / month (Pro)"
+                description="Default: -1, meaning unlimited."
+                configKey="signals_per_month_pro"
+                initialValue={signalsPro}
+                min={-1}
+                max={10000}
+                unit="/ month"
               />
             </div>
           </section>

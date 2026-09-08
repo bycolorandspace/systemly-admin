@@ -37,6 +37,7 @@ const ALLOWED_PATHS = new Set([
   "/api/cron/email-digest",
   "/api/cron/email-lifecycle",
   "/api/cron/feed-health-digest",
+  "/api/stripe/revalidate-pricing",
 ]);
 
 export async function POST(req: NextRequest) {

@@ -18,6 +18,8 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     telegramConfig,
     newScanLoadingUxConfig,
     scanLoadingSplitPanelConfig,
+    newScanFlowConfig,
+    academyRoadmapConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -62,6 +64,16 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "scan_loading_split_panel")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "new_scan_flow")
+        .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "academy_roadmap")
+        .maybeSingle(),
     ]);
 
   return {
@@ -93,6 +105,17 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     scanLoadingSplitPanelPaused:
       (scanLoadingSplitPanelConfig.data?.value as { paused?: boolean } | null)
         ?.paused ?? true,
+    // Defaults to paused, matching FEATURES.newScanFlow in the main app.
+    newScanFlowPaused:
+      (newScanFlowConfig.data?.value as { paused?: boolean } | null)?.paused ??
+      true,
+    // Defaults to LIVE, unlike every other flag here, matching
+    // FEATURES.academyRoadmap in the main app. It is a kill switch rather than
+    // a rollout: turning it off removes the roadmap step from onboarding, for
+    // when the separate academy Supabase project is unreachable.
+    academyRoadmapPaused:
+      (academyRoadmapConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
   };
 }
 

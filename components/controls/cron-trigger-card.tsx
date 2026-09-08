@@ -53,6 +53,12 @@ const CRON_JOBS: CronJob[] = [
     path: "/api/cron/email-digest",
   },
   {
+    label: "Refresh Stripe Prices",
+    description:
+      "Throw away the cached prices and read them from Stripe again. Use after changing a price: without it the app can show the old one for up to an hour.",
+    path: "/api/stripe/revalidate-pricing",
+  },
+  {
     label: "Email Lifecycle Sweep",
     description: "Day-7/14/30/60/90 lifecycle emails for users at each threshold today",
     path: "/api/cron/email-lifecycle",
