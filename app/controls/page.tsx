@@ -56,7 +56,7 @@ export default async function ControlsPage() {
   // Per-tier signal allowances. Fallbacks match TIER_CONFIG in the main app's
   // config/tiers.ts. -1 means unlimited, which is how Pro ships.
   const signalsFree = Number(
-    (configMap["signals_per_month_free"] as number | undefined) ?? 12,
+    (configMap["signals_per_month_free"] as number | undefined) ?? 6,
   );
   const signalsStarter = Number(
     (configMap["signals_per_month_starter"] as number | undefined) ?? 30,
@@ -128,8 +128,8 @@ export default async function ControlsPage() {
                 configKey="new_scan_flow"
               />
               <ToggleCard
-                label="Academy Roadmap Step"
-                description="The onboarding step that suggests a few Academy courses from the user's 'what trips you up most' answer and saves them to favourites on one press. LIVE by default, unlike the flags above: this is a kill switch for when the academy database is unreachable, not a rollout. Off removes the step from onboarding entirely. Takes up to 60s to take effect."
+                label="Academy Course Saving"
+                description="Whether onboarding saves a few Academy courses into a new user's favourites, picked from their 'what trips you up most' answer. It happens silently on the last screen of the goals questions; there is no longer a step that shows them. LIVE by default, unlike the flags above: this is a kill switch for when the academy database is unreachable, not a rollout. Off skips that one write and changes nothing the user sees. Takes up to 60s to take effect."
                 paused={health.academyRoadmapPaused}
                 configKey="academy_roadmap"
               />
@@ -198,7 +198,7 @@ export default async function ControlsPage() {
             <div className="space-y-3">
               <NumberConfigCard
                 label="Signals / month (Free)"
-                description="Default: 12, shown to users as up to 2 a day."
+                description="Default: 6. Users are shown the monthly figure only: the daily cap is display-only and signalAllowanceLabel() in the main app now hides it unless the month can sustain that pace, which 6 at 2 a day cannot."
                 configKey="signals_per_month_free"
                 initialValue={signalsFree}
                 min={-1}

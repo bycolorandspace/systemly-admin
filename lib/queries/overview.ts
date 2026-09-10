@@ -111,8 +111,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
       true,
     // Defaults to LIVE, unlike every other flag here, matching
     // FEATURES.academyRoadmap in the main app. It is a kill switch rather than
-    // a rollout: turning it off removes the roadmap step from onboarding, for
-    // when the separate academy Supabase project is unreachable.
+    // a rollout. What it gates changed on 9 September 2026 and the key did not:
+    // it used to remove the course-picking step from onboarding, and that step
+    // is now retired. Turning it off skips the silent write of suggested
+    // courses to a new user's favourites, for when the separate academy
+    // Supabase project is unreachable. It removes no screen.
     academyRoadmapPaused:
       (academyRoadmapConfig.data?.value as { paused?: boolean } | null)
         ?.paused ?? false,
