@@ -2,6 +2,9 @@ import { createAdminClient } from "@/lib/supabase";
 import { Header } from "@/components/layout/header";
 import { StrategyAdminRow } from "@/components/strategies/strategy-admin-row";
 import { AllStrategiesTable } from "@/components/strategies/all-strategies-table";
+import { LeakFlaggedBacktests } from "@/components/strategies/leak-flagged-backtests";
+import { getLeakFlaggedBacktests } from "@/lib/queries/tuning";
+import { readBehaviourProfile } from "@/lib/behaviour-profile";
 
 export const revalidate = 0;
 
@@ -17,7 +20,7 @@ export default async function StrategiesPage() {
   const { data: allStrategies } = await supabase
     .from("strategies")
     .select(
-      "id, name, description, required_tier, is_admin_enabled, available_tiers, ownership, visibility, user_id, created_at",
+      "id, name, description, required_tier, is_admin_enabled, available_tiers, ownership, visibility, user_id, created_at, behaviour_profile:config->behaviour_profile",
     )
     .order("created_at", { ascending: true });
 
@@ -42,6 +45,8 @@ export default async function StrategiesPage() {
   const ownerMap = Object.fromEntries(
     (owners ?? []).map((o) => [o.id, o.full_name || o.email || o.id]),
   );
+
+  const flaggedBacktests = await getLeakFlaggedBacktests(supabase);
 
   const mainAppUrl = process.env.MAIN_APP_URL || "http://localhost:3000";
 
@@ -73,6 +78,7 @@ export default async function StrategiesPage() {
                   required_tier={s.required_tier}
                   is_admin_enabled={s.is_admin_enabled ?? true}
                   available_tiers={s.available_tiers ?? null}
+                  behaviour_profile={readBehaviourProfile(s.behaviour_profile)}
                 />
               ))}
               {systemStrategies.length === 0 && (
@@ -108,6 +114,8 @@ export default async function StrategiesPage() {
               mainAppUrl={mainAppUrl}
             />
           </section>
+
+          <LeakFlaggedBacktests backtests={flaggedBacktests} />
         </div>
       </div>
     </>

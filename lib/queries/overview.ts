@@ -20,6 +20,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     scanLoadingSplitPanelConfig,
     newScanFlowConfig,
     academyRoadmapConfig,
+    scanDetailV2Config,
+    signalCardPayReadingConfig,
+    academyInHeaderConfig,
+    riskDoctorExecuteConfig,
+    bounceOddsConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -74,6 +79,31 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "academy_roadmap")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "scan_detail_v2")
+        .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "signal_card_pay_reading")
+        .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "academy_in_header")
+        .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "risk_doctor_execute")
+        .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "bounce_odds")
+        .maybeSingle(),
     ]);
 
   return {
@@ -119,6 +149,36 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     academyRoadmapPaused:
       (academyRoadmapConfig.data?.value as { paused?: boolean } | null)
         ?.paused ?? false,
+    // Defaults to LIVE, matching FEATURES.scanDetailV2 in the main app: the
+    // rebuilt scan page ships on. Pausing it brings back the previous stacked
+    // layout, which is kept unchanged in the main app for exactly that.
+    scanDetailV2Paused:
+      (scanDetailV2Config.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
+    // Defaults to LIVE, matching FEATURES.signalCardPayReading in the main app:
+    // signal cards show what the first target makes against the reader's risk
+    // and a chart-agreement count. Pausing it restores the confidence
+    // percentage on every card exactly as it was.
+    signalCardPayReadingPaused:
+      (signalCardPayReadingConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
+    // Defaults to LIVE, matching FEATURES.academyInHeader in the main app: the
+    // Academy progress card is a pill in the dashboard header on screens 1024px
+    // and wider. Pausing it puts the card back in the sidebar footer.
+    academyInHeaderPaused:
+      (academyInHeaderConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
+    // Defaults to LIVE, matching FEATURES.riskDoctorExecute in the main app:
+    // Risk Doctor's Execute button places trades. Pausing it refuses everyone
+    // but super users. The calculator stays on either way.
+    riskDoctorExecutePaused:
+      (riskDoctorExecuteConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
+    // Defaults to LIVE, matching FEATURES.bounceOdds in the main app: the signal
+    // page says where the move to a target is likely to turn back, with odds.
+    bounceOddsPaused:
+      (bounceOddsConfig.data?.value as { paused?: boolean } | null)?.paused ??
+      false,
   };
 }
 

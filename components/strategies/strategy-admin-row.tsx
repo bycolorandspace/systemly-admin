@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { BehaviourProfileControl } from "@/components/strategies/behaviour-profile-control";
+import type { BehaviourProfile } from "@/lib/behaviour-profile";
 
 const ALL_TIERS = ["free", "starter", "plus", "pro"] as const;
 type Tier = (typeof ALL_TIERS)[number];
@@ -19,6 +21,8 @@ interface StrategyAdminRowProps {
   required_tier: string;
   is_admin_enabled: boolean;
   available_tiers: string[] | null;
+  /** `config.behaviour_profile`, or null when the strategy has none. */
+  behaviour_profile: BehaviourProfile | null;
 }
 
 export function StrategyAdminRow({
@@ -28,6 +32,7 @@ export function StrategyAdminRow({
   required_tier,
   is_admin_enabled: initialEnabled,
   available_tiers: initialTiers,
+  behaviour_profile,
 }: StrategyAdminRowProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [selectedTiers, setSelectedTiers] = useState<Tier[]>(
@@ -188,6 +193,12 @@ export function StrategyAdminRow({
           </button>
         )}
       </div>
+
+      <BehaviourProfileControl
+        id={id}
+        name={name}
+        initialProfile={behaviour_profile}
+      />
     </div>
   );
 }

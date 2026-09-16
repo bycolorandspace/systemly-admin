@@ -6,11 +6,15 @@ import { X, ExternalLink } from "lucide-react";
 import { formatDate, formatGBP } from "@/lib/utils";
 
 const TIER_PRICES: Record<string, number> = { starter: 25, plus: 55, pro: 199 };
+// Mirrors TIER_CONFIG in the main app's config/tiers.ts (999 = unlimited).
+// Signals are the build defaults; the live value can be overridden on the
+// Controls page (signals_per_month_*). Plus gained 4 backtests on 2026-09-14,
+// and every signal number here had gone stale (they were half the real ones).
 const TIER_LIMITS: Record<string, Record<string, number>> = {
-  free: { signals: 3, scans: 0, backtests: 0 },
-  starter: { signals: 15, scans: 0, backtests: 0 },
-  plus: { signals: 30, scans: 10, backtests: 0 },
-  pro: { signals: 60, scans: 999, backtests: 10 },
+  free: { signals: 6, scans: 0, backtests: 0 },
+  starter: { signals: 30, scans: 0, backtests: 0 },
+  plus: { signals: 60, scans: 10, backtests: 4 },
+  pro: { signals: 999, scans: 999, backtests: 10 },
 };
 
 const OUTCOME_ICONS: Record<string, string> = {

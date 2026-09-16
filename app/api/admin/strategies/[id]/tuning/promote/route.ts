@@ -11,6 +11,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { readPromotion } from "@/lib/queries/tuning";
+import { keepLiveBehaviourProfile } from "@/lib/behaviour-profile";
 
 export async function POST(
   req: NextRequest,
@@ -28,7 +30,7 @@ export async function POST(
 
   const { data: experiment, error: expError } = await supabase
     .from("strategy_tuning_experiments")
-    .select("id, candidate_strategy_id, live_strategy_id, status")
+    .select("id, candidate_strategy_id, live_strategy_id, status, invalidated_at, preflight_summary")
     .eq("id", experimentId)
     .single();
 
@@ -44,6 +46,28 @@ export async function POST(
   if (!experiment.candidate_strategy_id) {
     return NextResponse.json(
       { error: "Experiment has no candidate_strategy_id to promote from" },
+      { status: 400 },
+    );
+  }
+  if (experiment.invalidated_at) {
+    return NextResponse.json(
+      { error: "This experiment's evidence was marked invalid, so it can't be promoted" },
+      { status: 400 },
+    );
+  }
+  // Settings are only promoted on months they weren't tuned on. The verdict is
+  // computed by evaluatePromotion() in the main app's tuning scripts and stored
+  // in preflight_summary.promotion.
+  const promotion = readPromotion(experiment.preflight_summary);
+  if (!promotion) {
+    return NextResponse.json(
+      { error: "No held-out check recorded for this experiment, so it can't be promoted" },
+      { status: 400 },
+    );
+  }
+  if (promotion.verdict !== "promote") {
+    return NextResponse.json(
+      { error: `Held-out check didn't pass (${promotion.verdict}), so it can't be promoted` },
       { status: 400 },
     );
   }
@@ -73,10 +97,16 @@ export async function POST(
   }
 
   // Apply the candidate's config to the live strategy first — only mark
-  // the experiment "promoted" once this actually succeeds.
+  // the experiment "promoted" once this actually succeeds. The July rails
+  // switch (behaviour_profile) stays as the live row has it: it has its own
+  // toggle on the Strategies page, and a candidate copied before the switch
+  // changed would otherwise flip it as a side effect of promoting settings.
   const { error: updateError } = await supabase
     .from("strategies")
-    .update({ config: candidate.config, updated_at: new Date().toISOString() })
+    .update({
+      config: keepLiveBehaviourProfile(candidate.config, live.config),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", liveStrategyId);
 
   if (updateError) {

@@ -10,6 +10,13 @@ interface NumberConfigCardProps {
   min?: number;
   max?: number;
   unit?: string;
+  /**
+   * Input granularity. Omitted, the browser assumes 1 and rejects a decimal,
+   * which is wrong for the dials measured in ATR multiples (0.6, 1.2). Pass
+   * 0.05 for those. Existing whole-number cards leave it unset and are
+   * unaffected.
+   */
+  step?: number;
 }
 
 export function NumberConfigCard({
@@ -20,6 +27,7 @@ export function NumberConfigCard({
   min,
   max,
   unit,
+  step,
 }: NumberConfigCardProps) {
   const [value, setValue] = useState(initialValue);
   const [saving, setSaving] = useState(false);
@@ -54,6 +62,7 @@ export function NumberConfigCard({
             value={value}
             min={min}
             max={max}
+            step={step}
             onChange={(e) => setValue(Number(e.target.value))}
             className="w-20 px-2 py-1.5 rounded text-sm text-right outline-none metric-number"
             style={{ background: "var(--secondary)", border: "1px solid var(--border)", color: "var(--foreground)" }}

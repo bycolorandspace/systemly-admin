@@ -14,6 +14,13 @@ import { ExperimentRow } from "@/components/strategies/experiment-row";
 import { PromoteButton } from "@/components/strategies/promote-button";
 import { DuplicateButton } from "@/components/strategies/duplicate-button";
 import { CandidateConfigEditor } from "@/components/strategies/candidate-config-editor";
+import { PromotionCheckNote } from "@/components/strategies/promotion-check-note";
+import {
+  formatLeakReview,
+  formatTrialExpectancy,
+  formatTrialProfitFactor,
+  trialEvidenceLabel,
+} from "@/lib/tuning-labels";
 
 export const revalidate = 0;
 
@@ -132,7 +139,11 @@ export default async function StrategyTuningPage({
     candidateId ? getBacktestTrials(supabase, candidateId) : Promise.resolve([]),
   ]);
 
-  const confirmedExperiments = experiments.filter((e) => e.status === "confirmed");
+  // Invalid evidence can never be promoted, so it never appears as a potential update.
+  const confirmedExperiments = experiments.filter(
+    (e) => e.status === "confirmed" && !e.invalidatedAt,
+  );
+  const hasInvalidTrials = backtestTrials.some((t) => t.invalidatedAt || !t.engineVersion);
 
   return (
     <>
@@ -197,18 +208,24 @@ export default async function StrategyTuningPage({
 
           <SectionCard
             title="Backtest Trial History"
-            description="Trials run against the candidate copy, most recent first."
+            description={
+              hasInvalidTrials
+                ? "Trials run against the candidate copy, most recent first. Profit factor is in R after modelled cost, with its 95% range. Rows marked INVALID or PRE-FIX could see candles that closed after each decision and were scored in pooled pips with no costs. Don't use them for decisions."
+                : "Trials run against the candidate copy, most recent first. Profit factor is in R after modelled cost, with its 95% range. PRE-FIX rows could see candles that closed after each decision."
+            }
           >
             <SimpleTable
-              columns={["Label", "Symbol", "TF", "Win Rate", "Profit Factor", "Expectancy", "Created"]}
+              columns={["Label", "Evidence", "Symbol", "TF", "Win Rate", "PF after cost", "Avg result", "Leak review", "Created"]}
               emptyMessage="No backtest trials yet for the linked candidate."
               rows={backtestTrials.map((t) => [
                 t.label ?? "(unlabeled)",
+                trialEvidenceLabel(t),
                 t.symbol,
                 t.primaryTimeframe,
                 t.winRate !== null ? formatPercent(t.winRate) : "—",
-                t.profitFactor !== null ? t.profitFactor.toFixed(2) : "—",
-                t.expectancyPips !== null ? `${t.expectancyPips.toFixed(1)} pips` : "—",
+                formatTrialProfitFactor(t),
+                formatTrialExpectancy(t),
+                formatLeakReview(t),
                 formatDate(t.createdAt),
               ])}
             />
@@ -252,12 +269,15 @@ export default async function StrategyTuningPage({
                       <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
                         {exp.source.replace(/_/g, " ")} · confirmed {formatDate(exp.decidedAt ?? exp.createdAt)}
                       </p>
+                      <PromotionCheckNote promotion={exp.promotion} />
                     </div>
-                    <PromoteButton
-                      strategyId={strategy.id}
-                      strategyName={strategy.name}
-                      experimentId={exp.id}
-                    />
+                    {exp.promotion?.verdict === "promote" && (
+                      <PromoteButton
+                        strategyId={strategy.id}
+                        strategyName={strategy.name}
+                        experimentId={exp.id}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

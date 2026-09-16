@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { TuningExperiment } from "@/lib/queries/tuning";
+import { InvalidEvidenceBadge } from "@/components/strategies/invalid-evidence-badge";
 
 const STATUS_COLORS: Record<string, string> = {
   open: "var(--muted-foreground)",
@@ -52,18 +53,23 @@ export function ExperimentRow({ strategyId, experiment }: ExperimentRowProps) {
         {experiment.source.replace(/_/g, " ")}
       </td>
       <td className="px-4 py-3">
-        <span
-          className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded"
-          style={{ background: "var(--muted)", color: STATUS_COLORS[status] }}
-        >
-          {status}
-        </span>
+        <div className="flex flex-wrap gap-1.5">
+          <span
+            className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded"
+            style={{ background: "var(--muted)", color: STATUS_COLORS[status] }}
+          >
+            {status}
+          </span>
+          {experiment.invalidatedAt && (
+            <InvalidEvidenceBadge reason={experiment.invalidReason} />
+          )}
+        </div>
       </td>
       <td className="px-4 py-3" style={{ color: "var(--muted-foreground)" }}>
         {formatDate(experiment.createdAt)}
       </td>
       <td className="px-4 py-3">
-        {status === "open" && (
+        {status === "open" && !experiment.invalidatedAt && (
           <div className="flex gap-3">
             <button
               onClick={() => updateStatus("confirmed")}

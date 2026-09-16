@@ -68,6 +68,33 @@ export default async function ControlsPage() {
     (configMap["signals_per_month_pro"] as number | undefined) ?? -1,
   );
 
+  // Exit placement. Fallbacks match MAX_AGE_HOURS_BY_STYLE and
+  // TP1_BAND_ATR_BY_STYLE in the main app's config/trading-horizons.ts. The
+  // horizon caps were cut hard on 2026-09-11 on the evidence in
+  // docs/analysis/STOP_AND_TARGET_PLACEMENT_STUDY.md, so these are the dials
+  // most likely to need moving back if the shorter clock proves too blunt.
+  const maxAgeScalp = Number(
+    (configMap["signal_max_age_hours_scalp"] as number | undefined) ?? 8,
+  );
+  const maxAgeDay = Number(
+    (configMap["signal_max_age_hours_day"] as number | undefined) ?? 12,
+  );
+  const maxAgeSwing = Number(
+    (configMap["signal_max_age_hours_swing"] as number | undefined) ?? 36,
+  );
+  const maxAgePosition = Number(
+    (configMap["signal_max_age_hours_position"] as number | undefined) ?? 336,
+  );
+  const tp1BandMin = Number(
+    (configMap["signal_tp1_band_min_atr"] as number | undefined) ?? 0.6,
+  );
+  const tp1BandMax = Number(
+    (configMap["signal_tp1_band_max_atr"] as number | undefined) ?? 1.2,
+  );
+  const stopVetoPaused =
+    (configMap["signal_stop_liquidity_veto"] as { paused?: boolean } | undefined)
+      ?.paused === true;
+
   // Signal engine (fallbacks match config/ai-models.ts and
   // config/strategy-scanning.ts in the main app)
   const communityAiModel = String(
@@ -75,6 +102,15 @@ export default async function ControlsPage() {
   );
   const signalAlertMinConfidence = Number(
     (configMap["signal_alert_min_confidence"] as number | undefined) ?? 60,
+  );
+  // Alerts moved from confidence to plan quality on 2026-09-14. Fallbacks
+  // match SIGNAL_ALERT_MIN_PLAN_QUALITY and SIGNAL_ALERT_BASIS_DEFAULT in the
+  // main app's config/strategy-scanning.ts.
+  const signalAlertMinPlanQuality = Number(
+    (configMap["signal_alert_min_plan_quality"] as number | undefined) ?? 60,
+  );
+  const signalAlertBasis = String(
+    (configMap["signal_alert_basis"] as string | undefined) ?? "plan_quality",
   );
 
   return (
@@ -132,6 +168,36 @@ export default async function ControlsPage() {
                 description="Whether onboarding saves a few Academy courses into a new user's favourites, picked from their 'what trips you up most' answer. It happens silently on the last screen of the goals questions; there is no longer a step that shows them. LIVE by default, unlike the flags above: this is a kill switch for when the academy database is unreachable, not a rollout. Off skips that one write and changes nothing the user sees. Takes up to 60s to take effect."
                 paused={health.academyRoadmapPaused}
                 configKey="academy_roadmap"
+              />
+              <ToggleCard
+                label="Rebuilt Scan Page"
+                description="The redesigned scan detail page: money first trade panel with the price wire, trend alignment and copy at the top, every level grouped under the entry, stop and targets, and warnings at the bottom. LIVE by default. Pausing it brings back the previous layout exactly as it was. Testers can compare per browser with ?ff:scanDetailV2=off. Takes up to 60s to take effect."
+                paused={health.scanDetailV2Paused}
+                configKey="scan_detail_v2"
+              />
+              <ToggleCard
+                label="Signal Cards: Pay Reading"
+                description="Signal cards show what the first target would make against the reader's risk, and a count of how many chart readings agree with the trade, instead of the AI confidence percentage. Both are worked out in code when the signal is saved. LIVE by default. Pausing it restores the confidence percentage exactly. Testers can compare per browser with ?ff:signalCardPayReading=off. Takes up to 60s to take effect."
+                paused={health.signalCardPayReadingPaused}
+                configKey="signal_card_pay_reading"
+              />
+              <ToggleCard
+                label="Academy Progress in Header"
+                description="Moves the Academy card (level, XP bar, streak, achievements) out of the sidebar footer and into the dashboard header as a small pill, to free up sidebar space. Hovering the pill shows the full card. Screens 1024px and wider only; narrower screens keep it in the sidebar. LIVE by default. Pausing it puts the card back in the sidebar footer. Testers can compare per browser with ?ff:academyInHeader=off. Takes up to 60s to take effect."
+                paused={health.academyInHeaderPaused}
+                configKey="academy_in_header"
+              />
+              <ToggleCard
+                label="Risk Doctor: Execute"
+                description="Whether Risk Doctor's Execute button can place trades with the user's broker. LIVE by default. Pausing it stops everyone except super users placing trades from Risk Doctor, and the button reads 'Execute is paused'. The calculator stays on either way. Takes up to 60s to take effect."
+                paused={health.riskDoctorExecutePaused}
+                configKey="risk_doctor_execute"
+              />
+              <ToggleCard
+                label="Signal Page: Bounce Odds"
+                description="On the signal page, every level between the entry and a target says to look out for price turning back there, with measured odds where a pattern covers it, and the trade panel says 'bounce likely' once a 15-minute candle touches such a level and closes back from it. Touches are recorded by the outcome check either way. LIVE by default. Pausing it puts the plain look-out lines back and hides the note. Testers can compare per browser with ?ff:bounceOdds=off. Takes up to 60s to take effect."
+                paused={health.bounceOddsPaused}
+                configKey="bounce_odds"
               />
               <ToggleCard
                 label="Community Feed"
@@ -231,6 +297,91 @@ export default async function ControlsPage() {
                 min={-1}
                 max={10000}
                 unit="/ month"
+              />
+            </div>
+          </section>
+
+          {/* Exit placement */}
+          <section>
+            <p
+              className="text-[10px] tracking-widest uppercase mb-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Exit Placement
+            </p>
+            <p
+              className="text-xs mb-4"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Where a trade&apos;s first target sits and how long the setup
+              stays live. The main app reads these within a minute, with no
+              redeploy. Changing them changes prices users trade on, so move one
+              dial at a time and watch the next day of outcomes. Evidence for
+              the shipped values is in the exit placement studies under
+              docs/analysis.
+            </p>
+            <div className="space-y-3">
+              <NumberConfigCard
+                label="Max age (Day)"
+                description="Default: 12 hours, cut from 24. A day signal is in front for about five hours and is nearly a full ATR behind by hour 24."
+                configKey="signal_max_age_hours_day"
+                initialValue={maxAgeDay}
+                min={1}
+                max={336}
+                unit="hours"
+              />
+              <NumberConfigCard
+                label="Max age (Swing)"
+                description="Default: 36 hours, cut from 168. Worth +0.11R in sample and +0.29R out of sample, on 13 of 15 symbols. The single largest improvement found."
+                configKey="signal_max_age_hours_swing"
+                initialValue={maxAgeSwing}
+                min={1}
+                max={336}
+                unit="hours"
+              />
+              <NumberConfigCard
+                label="Max age (Scalp)"
+                description="Default: 8 hours, unchanged. Only 8 scalp signals in the study sample, so this one is untested rather than confirmed."
+                configKey="signal_max_age_hours_scalp"
+                initialValue={maxAgeScalp}
+                min={1}
+                max={336}
+                unit="hours"
+              />
+              <NumberConfigCard
+                label="Max age (Position)"
+                description="Default: 336 hours, unchanged and equal to the absolute cap. No position signals in the study sample."
+                configKey="signal_max_age_hours_position"
+                initialValue={maxAgePosition}
+                min={1}
+                max={336}
+                unit="hours"
+              />
+              <NumberConfigCard
+                label="First target band, floor"
+                description="Default: 0.6. The nearest the first target may sit, in multiples of the symbol's ATR. One pair for every style: the evidence separates swing from day weakly at best."
+                configKey="signal_tp1_band_min_atr"
+                initialValue={tp1BandMin}
+                min={0.1}
+                max={6}
+                step={0.05}
+                unit="× ATR"
+              />
+              <NumberConfigCard
+                label="First target band, ceiling"
+                description="Default: 1.2. Expectancy falls off sharply past 1.5× ATR at every stop width, in both halves of the sample. The realised median before this change was 1.69×."
+                configKey="signal_tp1_band_max_atr"
+                initialValue={tp1BandMax}
+                min={0.1}
+                max={6}
+                step={0.05}
+                unit="× ATR"
+              />
+              <ToggleCard
+                label="Stop liquidity veto"
+                description="Moves a stop that has landed within 0.1× ATR of an obvious level past that level. A stop anchored to a level is where other people's stops are, and price goes there to collect them. Pause to place stops purely on volatility."
+                paused={stopVetoPaused}
+                configKey="signal_stop_liquidity_veto"
               />
             </div>
           </section>
@@ -357,9 +508,25 @@ export default async function ControlsPage() {
                 initialValue={communityAiModel}
                 placeholder="deepseek | claude | gemini"
               />
+              <TextConfigCard
+                label="Alert Basis"
+                description="Which score decides whether a signal sends a push / WhatsApp / Telegram alert. plan_quality (default): what the trade pays if it goes the right way, worked out in code when the signal is saved. confidence: the model's own percentage, the rule before 2026-09-14, kept as a rollback. Anything else is read as plan_quality. Takes effect on the next scan, no redeploy."
+                configKey="signal_alert_basis"
+                initialValue={signalAlertBasis}
+                placeholder="plan_quality | confidence"
+              />
               <NumberConfigCard
-                label="Alert Threshold"
-                description="Minimum confidence before a signal triggers a push / WhatsApp / Telegram alert. Does NOT hide anything — every signal still appears in the app. 0 = alert on everything."
+                label="Alert Threshold (plan quality)"
+                description="Minimum plan quality before a signal triggers an alert, when Alert Basis is plan_quality. Default 60, chosen to keep alert volume where it was: 14.1% of signals since 1 September clear it, against 13.8% for confidence at 60. Re-measure after any change to where the first target is placed, because plan quality moves with it. A signal whose plan could not be scored never alerts. Does NOT hide anything: every signal still appears in the app. 0 = alert on every scored signal."
+                configKey="signal_alert_min_plan_quality"
+                initialValue={signalAlertMinPlanQuality}
+                min={0}
+                max={100}
+                unit="score"
+              />
+              <NumberConfigCard
+                label="Rollback Threshold (confidence)"
+                description="Only read when Alert Basis is set to confidence. Minimum model confidence before a signal triggers an alert, exactly as alerts worked before 2026-09-14. Does NOT hide anything: every signal still appears in the app. 0 = alert on everything."
                 configKey="signal_alert_min_confidence"
                 initialValue={signalAlertMinConfidence}
                 min={0}

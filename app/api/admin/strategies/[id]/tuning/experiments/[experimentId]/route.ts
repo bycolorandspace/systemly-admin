@@ -37,6 +37,21 @@ export async function PATCH(
   }
 
   const supabase = createAdminClient();
+
+  if (updates.status === "confirmed") {
+    const { data: existing } = await supabase
+      .from("strategy_tuning_experiments")
+      .select("invalidated_at")
+      .eq("id", experimentId)
+      .maybeSingle();
+    if (existing?.invalidated_at) {
+      return NextResponse.json(
+        { error: "This experiment's evidence was marked invalid, so it can't be confirmed" },
+        { status: 400 },
+      );
+    }
+  }
+
   const { error } = await supabase
     .from("strategy_tuning_experiments")
     .update(updates)
