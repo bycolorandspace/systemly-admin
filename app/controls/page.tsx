@@ -56,10 +56,10 @@ export default async function ControlsPage() {
   // Per-tier signal allowances. Fallbacks match TIER_CONFIG in the main app's
   // config/tiers.ts. -1 means unlimited, which is how Pro ships.
   const signalsFree = Number(
-    (configMap["signals_per_month_free"] as number | undefined) ?? 6,
+    (configMap["signals_per_month_free"] as number | undefined) ?? 2,
   );
   const signalsStarter = Number(
-    (configMap["signals_per_month_starter"] as number | undefined) ?? 30,
+    (configMap["signals_per_month_starter"] as number | undefined) ?? 6,
   );
   const signalsPlus = Number(
     (configMap["signals_per_month_plus"] as number | undefined) ?? 60,
