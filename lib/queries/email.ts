@@ -62,8 +62,38 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
   {
     family: "sendActivationNudge",
     label: "Activation nudge",
-    trigger: "Day 3, if they have run no signals",
+    trigger: "24 hours in, if they have run no signals",
+    expectation: { kind: "regular", maxSilentDays: 3 },
+  },
+  {
+    family: "signal-closed",
+    label: "Your signal closed",
+    trigger: "One of their own signals reaches a target or its stop",
+    expectation: { kind: "regular", maxSilentDays: 3 },
+  },
+  {
+    family: "academy-start",
+    label: "Academy start, day 5",
+    trigger: "Day 5, if they gave an onboarding answer and have barely started",
     expectation: { kind: "regular", maxSilentDays: 7 },
+  },
+  {
+    family: "allowance-reset",
+    label: "Allowance resets",
+    trigger: "26th of the month, if they have signals left and spent at least one",
+    expectation: { kind: "conditional" },
+  },
+  {
+    family: "abandoned-scan",
+    label: "Unfinished scan",
+    trigger: "They started a scan and never got a result",
+    expectation: { kind: "conditional" },
+  },
+  {
+    family: "scan-failed",
+    label: "Scan failed on our side",
+    trigger: "A scan errored and they have not completed one since",
+    expectation: { kind: "conditional" },
   },
   {
     family: "community-momentum-d2",
@@ -102,18 +132,6 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     expectation: { kind: "conditional" },
   },
   {
-    family: "sendFirstWin",
-    label: "First win",
-    trigger: "Their first target is hit",
-    expectation: { kind: "conditional" },
-  },
-  {
-    family: "sendFirstLoss",
-    label: "First loss",
-    trigger: "Their first stop is hit, with no win before it",
-    expectation: { kind: "conditional" },
-  },
-  {
     family: "quota-hit",
     label: "Quota hit upsell",
     trigger: "They use the last signal of their monthly allowance",
@@ -126,15 +144,15 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     expectation: { kind: "manual" },
   },
   {
-    family: "sendFounderInvite",
-    label: "Founder invite",
-    trigger: "Sent by hand to people who onboarded and never scanned",
+    family: "sendStarterPrice",
+    label: "Starter is now £9.99",
+    trigger: "Sent by hand, once, to free accounts that saw the old price",
     expectation: { kind: "manual" },
   },
   {
-    family: "sendNoTradeApology",
-    label: "No trade letter",
-    trigger: "Sent by hand to people whose every scan said no trade",
+    family: "sendFounderInvite",
+    label: "Founder invite",
+    trigger: "Sent by hand to people who onboarded and never scanned",
     expectation: { kind: "manual" },
   },
 ];
@@ -186,7 +204,21 @@ const WINDOW_DAYS = 90;
  * the community email is deliberately NOT stripped: day 2 and day 7 are two
  * different emails to the reader and are counted separately here.
  */
+/**
+ * Families whose key ends in an opaque id rather than a date or a number.
+ *
+ * `signal-closed-<signal uuid>` is one row per signal, so the suffix matches
+ * none of the patterns below and the fold has to be by prefix. Without this
+ * every send became its own family, the registry row stayed on "never sent"
+ * for ever, and the page would have reported the most important email in the
+ * set as broken while it was working.
+ */
+const ID_SUFFIX_FAMILIES = ["signal-closed"];
+
 export function campaignFamily(campaign: string): string {
+  for (const family of ID_SUFFIX_FAMILIES) {
+    if (campaign.startsWith(`${family}-`)) return family;
+  }
   return campaign
     .replace(/-\d{4}-W\d{2}$/, "")
     .replace(/-\d{4}-\d{2}-\d{2}$/, "")
