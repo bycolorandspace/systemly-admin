@@ -11,7 +11,7 @@ interface Row {
   createdAt: string;
   scanCount: number;
   isPaying: boolean;
-  segment: "never_scanned" | "all_no_trade";
+  segment: "never_scanned";
   outreachSentAt: string | null;
   trialEndsAt: string | null;
   trialTier: string | null;
@@ -19,7 +19,6 @@ interface Row {
 
 const SEGMENTS = [
   { key: "never_scanned", label: "Never scanned", blurb: "Signed up and never generated a signal." },
-  { key: "all_no_trade", label: "All scans were NO_TRADE", blurb: "Every scan returned no trade, before the 17 Aug fix." },
 ] as const;
 
 export function OutreachTable() {

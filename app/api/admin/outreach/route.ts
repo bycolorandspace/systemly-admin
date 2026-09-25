@@ -6,7 +6,10 @@ import { createAdminClient } from "@/lib/supabase";
  *
  * Two cohorts:
  *   never_scanned  - signed up, never generated a signal. We do not know why.
- *   all_no_trade   - every scan they ran returned NO_TRADE, which was a bug
+ *   The all_no_trade segment was retired on 25 September 2026 along with its
+ *   letter: the 17 August confidence change ended that outcome (0 of 285 user
+ *   scans in September), and the letter announced that change as news and
+ *   promised two features that have since shipped.
  *                    fixed on 17 Aug 2026 (repairRefusal, commit 5462ab3).
  *
  * Test and internal accounts are filtered out: emailing info+meta@systemly.ai
@@ -55,11 +58,7 @@ export async function GET() {
     .filter((p) => !p.is_super && !isTestAccount(p.email))
     .map((p) => {
       const st = stats.get(p.id);
-      const segment = !st
-        ? "never_scanned"
-        : st.tradeable === 0
-          ? "all_no_trade"
-          : null;
+      const segment = !st ? "never_scanned" : null;
       return segment
         ? {
             id: p.id,
@@ -84,7 +83,6 @@ export async function GET() {
 
 const KIND_TO_EMAIL_TYPE: Record<string, string> = {
   never_scanned: "founder-invite",
-  all_no_trade: "no-trade-apology",
 };
 
 /**

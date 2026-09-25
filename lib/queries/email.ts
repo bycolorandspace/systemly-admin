@@ -66,12 +66,6 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     expectation: { kind: "regular", maxSilentDays: 7 },
   },
   {
-    family: "sendEnableNotifications",
-    label: "Enable notifications nudge",
-    trigger: "Day 3, if WhatsApp is not set up",
-    expectation: { kind: "regular", maxSilentDays: 7 },
-  },
-  {
     family: "community-momentum-d2",
     label: "Community wins, day 2",
     trigger: "Day 2, if anything closed community-wide",
@@ -84,12 +78,6 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     expectation: { kind: "regular", maxSilentDays: 3 },
   },
   {
-    family: "sendWhatYouMissed",
-    label: "What you missed, day 14",
-    trigger: "Day 14, if they have run fewer than 3 signals",
-    expectation: { kind: "regular", maxSilentDays: 14 },
-  },
-  {
     family: "sendMonthlyRecap",
     label: "Monthly recap, day 30",
     trigger: "Day 30, if there are any stats to show",
@@ -99,18 +87,6 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     family: "sendWinbackUpdates",
     label: "Winback, day 60",
     trigger: "Day 60, if they have been inactive 30 days",
-    expectation: { kind: "conditional" },
-  },
-  {
-    family: "sendFinalWinback",
-    label: "Final winback, day 90",
-    trigger: "Day 90, if they have been inactive 60 days",
-    expectation: { kind: "conditional" },
-  },
-  {
-    family: "wins-digest",
-    label: "Daily wins digest",
-    trigger: "8pm their time, only on a day they won something",
     expectation: { kind: "conditional" },
   },
   {
@@ -135,18 +111,6 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     family: "sendFirstLoss",
     label: "First loss",
     trigger: "Their first stop is hit, with no win before it",
-    expectation: { kind: "conditional" },
-  },
-  {
-    family: "pip-milestone",
-    label: "Pip milestone",
-    trigger: "Cumulative pips cross 100, 500, 1k, 5k or 10k",
-    expectation: { kind: "conditional" },
-  },
-  {
-    family: "win-streak",
-    label: "Win streak",
-    trigger: "Three clean winning days in a row",
     expectation: { kind: "conditional" },
   },
   {
