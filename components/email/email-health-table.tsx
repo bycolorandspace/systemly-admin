@@ -7,6 +7,20 @@ function lastSentLabel(row: EmailRow): string {
   return `${formatDistanceToNowStrict(new Date(row.lastSent))} ago`;
 }
 
+/**
+ * When it next goes out.
+ *
+ * An event-driven email has no next time: it fires when somebody does
+ * something, which is a truer answer than a clock. Saying so is better than
+ * leaving the cell blank, which reads as missing data.
+ */
+function nextDueLabel(row: EmailRow): string {
+  if (row.schedule.kind === "event") return "on the event";
+  if (row.schedule.kind === "manual") return "by hand";
+  if (!row.nextDueAt) return "not scheduled";
+  return `in ${formatDistanceToNowStrict(new Date(row.nextDueAt))}`;
+}
+
 export function EmailHealthTable({ rows }: { rows: EmailRow[] }) {
   return (
     <div
@@ -24,6 +38,8 @@ export function EmailHealthTable({ rows }: { rows: EmailRow[] }) {
           >
             <th className="px-4 py-2.5 font-medium">Email</th>
             <th className="px-4 py-2.5 font-medium">Goes out when</th>
+            <th className="px-4 py-2.5 font-medium text-right">Next run</th>
+            <th className="px-4 py-2.5 font-medium text-right">In cohort</th>
             <th className="px-4 py-2.5 font-medium text-right">Last sent</th>
             <th className="px-4 py-2.5 font-medium text-right">24h</th>
             <th className="px-4 py-2.5 font-medium text-right">7d</th>
@@ -49,6 +65,23 @@ export function EmailHealthTable({ rows }: { rows: EmailRow[] }) {
                 style={{ color: "var(--muted-foreground)" }}
               >
                 {row.trigger}
+              </td>
+              <td
+                className="px-4 py-2.5 text-right whitespace-nowrap"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {nextDueLabel(row)}
+              </td>
+              <td
+                className="px-4 py-2.5 text-right metric-number"
+                style={{
+                  color:
+                    row.cohortNow === null
+                      ? "var(--muted-foreground)"
+                      : "var(--foreground)",
+                }}
+              >
+                {row.cohortNow === null ? "\u2014" : row.cohortNow}
               </td>
               <td
                 className="px-4 py-2.5 text-right metric-number"

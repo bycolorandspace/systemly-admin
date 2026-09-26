@@ -37,6 +37,34 @@ type Expectation =
   /** Sent by hand from the broadcast endpoint. */
   | { kind: "manual" };
 
+/**
+ * When the thing runs, as opposed to whether anyone qualifies when it does.
+ *
+ * Separate from `Expectation` on purpose: that answers "is this broken", this
+ * answers "when does it next go out". The page needs both, and conflating them
+ * is how the old version could only ever report the past.
+ *
+ * The schedules here mirror `lib/inngest/email-functions.ts` in the main app
+ * and are restated rather than imported, because that is a different
+ * deployment. If the two disagree, the cron wins and this is wrong: the page
+ * says so in its own copy rather than pretending to be the source of truth.
+ */
+export type Schedule =
+  /** Day N after signup, in the 08:00 UTC lifecycle sweep. */
+  | { kind: "day"; day: number }
+  /** Every day at a fixed UTC hour. */
+  | { kind: "daily"; hourUtc: number }
+  /** The hourly sweep. */
+  | { kind: "hourly" }
+  /** One day of the month, in the 08:00 UTC sweep. */
+  | { kind: "monthly"; dayOfMonth: number }
+  /** One weekday, in the 08:00 UTC sweep. 1 is Monday. */
+  | { kind: "weekly"; weekday: number }
+  /** Fires when a person or the market does something, not on a clock. */
+  | { kind: "event" }
+  /** Sent by hand. */
+  | { kind: "manual" };
+
 export interface EmailDefinition {
   /** Campaign family, i.e. the campaign key with any date or number stripped. */
   family: string;
@@ -44,6 +72,20 @@ export interface EmailDefinition {
   /** What has to happen for this to send, in one line. */
   trigger: string;
   expectation: Expectation;
+  schedule: Schedule;
+  /**
+   * Campaign-slug prefix, for emails sent by hand.
+   *
+   * A hand-sent founder campaign writes its ledger row under the slug the
+   * operator typed, because that slug is the idempotency key. So its rows can
+   * never match a family derived from a sender name, and the feedback request
+   * read "never sent" on this page an hour after it went to 98 people while
+   * `feedback-2026-09` sat in the unregistered list below.
+   *
+   * The prefix is the join. It has to be the convention operators actually
+   * follow, which is `<thing>-<period>`.
+   */
+  slugPrefix?: string;
 }
 
 export const EMAIL_REGISTRY: EmailDefinition[] = [
@@ -52,112 +94,201 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     label: "Welcome",
     trigger: "They finish the onboarding questions",
     expectation: { kind: "regular", maxSilentDays: 2 },
+    schedule: { kind: "event" },
   },
   {
     family: "sendFounderCheckin",
     label: "Founder check-in",
     trigger: "Two hours after onboarding",
     expectation: { kind: "regular", maxSilentDays: 2 },
+    schedule: { kind: "event" },
   },
   {
     family: "sendActivationNudge",
     label: "Activation nudge",
     trigger: "24 hours in, if they have run no signals",
     expectation: { kind: "regular", maxSilentDays: 3 },
+    schedule: { kind: "event" },
   },
   {
     family: "signal-closed",
     label: "Your signal closed",
     trigger: "One of their own signals reaches a target or its stop",
     expectation: { kind: "regular", maxSilentDays: 3 },
+    schedule: { kind: "event" },
+  },
+  {
+    family: "second-scan",
+    label: "Second scan",
+    trigger: "Day 3, if they have one signal and have spent none of their allowance",
+    expectation: { kind: "regular", maxSilentDays: 3 },
+    schedule: { kind: "day", day: 3 },
   },
   {
     family: "academy-start",
     label: "Academy start, day 5",
     trigger: "Day 5, if they gave an onboarding answer and have barely started",
     expectation: { kind: "regular", maxSilentDays: 7 },
+    schedule: { kind: "day", day: 5 },
   },
   {
     family: "allowance-reset",
     label: "Allowance resets",
     trigger: "26th of the month, if they have signals left and spent at least one",
     expectation: { kind: "conditional" },
+    schedule: { kind: "monthly", dayOfMonth: 26 },
   },
   {
     family: "abandoned-scan",
     label: "Unfinished scan",
     trigger: "They started a scan and never got a result",
     expectation: { kind: "conditional" },
+    schedule: { kind: "hourly" },
   },
   {
     family: "scan-failed",
     label: "Scan failed on our side",
     trigger: "A scan errored and they have not completed one since",
     expectation: { kind: "conditional" },
+    schedule: { kind: "hourly" },
   },
   {
-    family: "community-momentum-d2",
+    family: "community-day2",
     label: "Community wins, day 2",
     trigger: "Day 2, if anything closed community-wide",
     expectation: { kind: "regular", maxSilentDays: 3 },
+    schedule: { kind: "day", day: 2 },
   },
   {
     family: "community-momentum-d7",
     label: "Community momentum, day 7",
     trigger: "Day 7, if anything closed community-wide",
     expectation: { kind: "regular", maxSilentDays: 3 },
+    schedule: { kind: "day", day: 7 },
   },
   {
     family: "sendMonthlyRecap",
     label: "Monthly recap, day 30",
     trigger: "Day 30, if there are any stats to show",
     expectation: { kind: "regular", maxSilentDays: 14 },
+    schedule: { kind: "day", day: 30 },
   },
   {
     family: "sendWinbackUpdates",
     label: "Winback, day 60",
     trigger: "Day 60, if they have been inactive 30 days",
     expectation: { kind: "conditional" },
+    schedule: { kind: "day", day: 60 },
   },
   {
     family: "weekly-wins",
     label: "Weekly wins",
     trigger: "Mondays, unless the week lost money",
     expectation: { kind: "conditional" },
+    schedule: { kind: "weekly", weekday: 1 },
   },
   {
     family: "sendTrialEnding",
     label: "Trial ending",
     trigger: "24 hours before a trial converts to a charge",
     expectation: { kind: "conditional" },
+    schedule: { kind: "hourly" },
   },
   {
     family: "quota-hit",
     label: "Quota hit upsell",
     trigger: "They use the last signal of their monthly allowance",
     expectation: { kind: "conditional" },
+    schedule: { kind: "event" },
   },
   {
     family: "sendProductUpdate",
     label: "Product update",
     trigger: "Sent by hand from the broadcast endpoint",
     expectation: { kind: "manual" },
+    schedule: { kind: "manual" },
   },
   {
     family: "sendStarterPrice",
     label: "Starter is now £9.99",
     trigger: "Sent by hand, once, to free accounts that saw the old price",
     expectation: { kind: "manual" },
+    schedule: { kind: "manual" },
+  },
+  {
+    family: "sendFeedbackRequest",
+    label: "Feedback request",
+    trigger: "Sent by hand to everyone who has run at least one scan",
+    expectation: { kind: "manual" },
+    schedule: { kind: "manual" },
+    slugPrefix: "feedback",
   },
   {
     family: "sendFounderInvite",
     label: "Founder invite",
     trigger: "Sent by hand to people who onboarded and never scanned",
     expectation: { kind: "manual" },
+    schedule: { kind: "manual" },
   },
 ];
 
 export type EmailStatus = "ok" | "silent" | "never" | "quiet" | "manual";
+
+/** The 08:00 UTC hour the daily lifecycle sweep runs at. */
+const SWEEP_HOUR_UTC = 8;
+
+/**
+ * When this next goes out, or null when nothing schedules it.
+ *
+ * Every day-N email rides the same 08:00 UTC sweep, so they all share a next
+ * fire time and differ only in who qualifies. Event-driven and hand-sent
+ * emails return null rather than a guess.
+ */
+export function nextDueAt(schedule: Schedule, now: Date): string | null {
+  const at = (d: Date, hour: number) => {
+    const x = new Date(d);
+    x.setUTCHours(hour, 0, 0, 0);
+    return x;
+  };
+
+  switch (schedule.kind) {
+    case "event":
+    case "manual":
+      return null;
+    case "hourly": {
+      const next = new Date(now);
+      next.setUTCMinutes(0, 0, 0);
+      next.setUTCHours(next.getUTCHours() + 1);
+      return next.toISOString();
+    }
+    case "daily":
+    case "day": {
+      const hour = schedule.kind === "daily" ? schedule.hourUtc : SWEEP_HOUR_UTC;
+      let next = at(now, hour);
+      if (next <= now) next = at(new Date(next.getTime() + 86_400_000), hour);
+      return next.toISOString();
+    }
+    case "weekly": {
+      let next = at(now, SWEEP_HOUR_UTC);
+      // getUTCDay() is 0 for Sunday; the schedule uses 1 for Monday.
+      const target = schedule.weekday % 7;
+      while (next <= now || next.getUTCDay() !== target) {
+        next = new Date(next.getTime() + 86_400_000);
+        next = at(next, SWEEP_HOUR_UTC);
+      }
+      return next.toISOString();
+    }
+    case "monthly": {
+      let next = at(now, SWEEP_HOUR_UTC);
+      next.setUTCDate(schedule.dayOfMonth);
+      if (next <= now) {
+        next = at(now, SWEEP_HOUR_UTC);
+        next.setUTCMonth(next.getUTCMonth() + 1, schedule.dayOfMonth);
+      }
+      return next.toISOString();
+    }
+  }
+}
 
 export interface EmailRow extends EmailDefinition {
   lastSent: string | null;
@@ -167,6 +298,19 @@ export interface EmailRow extends EmailDefinition {
   sent30d: number;
   status: EmailStatus;
   failures30d: number;
+  /** ISO timestamp of the next scheduled run, or null if nothing schedules it. */
+  nextDueAt: string | null;
+  /**
+   * How many accounts the next run will consider, before its own conditions.
+   *
+   * Only meaningful for a day-N email, where the cohort is simply "signed up N
+   * days ago" and is one indexed count. It is NOT how many will send: every
+   * one of these then applies its own gate (has run no signals, has an
+   * untouched allowance, community results exist, and so on), and those live in
+   * the cron rather than here. Deliberately not duplicated: a second copy of
+   * the gating logic would drift from the real one and quietly lie.
+   */
+  cohortNow: number | null;
 }
 
 export interface EmailFailure {
@@ -215,9 +359,17 @@ const WINDOW_DAYS = 90;
  */
 const ID_SUFFIX_FAMILIES = ["signal-closed"];
 
+/** Hand-sent campaigns, by the slug prefix an operator types. */
+const SLUG_PREFIX_FAMILIES: [string, string][] = EMAIL_REGISTRY.filter(
+  (d) => d.slugPrefix,
+).map((d) => [d.slugPrefix as string, d.family]);
+
 export function campaignFamily(campaign: string): string {
   for (const family of ID_SUFFIX_FAMILIES) {
     if (campaign.startsWith(`${family}-`)) return family;
+  }
+  for (const [prefix, family] of SLUG_PREFIX_FAMILIES) {
+    if (campaign === prefix || campaign.startsWith(`${prefix}-`)) return family;
   }
   return campaign
     .replace(/-\d{4}-W\d{2}$/, "")
@@ -246,7 +398,13 @@ export async function getEmailHealth(
   const since = (days: number) =>
     new Date(now - days * 86_400_000).toISOString();
 
-  const [ledger, failureRows] = await Promise.all([
+  const dayCohorts = new Set(
+    EMAIL_REGISTRY.filter((d) => d.schedule.kind === "day").map((d) =>
+      d.schedule.kind === "day" ? d.schedule.day : 0,
+    ),
+  );
+
+  const [ledger, failureRows, signupCounts] = await Promise.all([
     supabase
       .from("email_broadcast_log")
       .select("campaign, sent_at")
@@ -259,6 +417,23 @@ export async function getEmailHealth(
       .gte("created_at", since(30))
       .order("created_at", { ascending: false })
       .limit(200),
+    /*
+     * Signup dates for the day-N cohorts, counted in memory.
+     *
+     * One read of a single indexed column over the longest window any day-N
+     * email needs, rather than a query per email. `user_profiles` is small
+     * enough that this is cheaper than the round trips.
+     */
+    supabase
+      .from("user_profiles")
+      .select("created_at")
+      .gte(
+        "created_at",
+        new Date(
+          now - (Math.max(...dayCohorts, 1) + 1) * 86_400_000,
+        ).toISOString(),
+      )
+      .limit(5000),
   ]);
 
   const sends = (ledger.data ?? []) as { campaign: string; sent_at: string }[];
@@ -298,6 +473,20 @@ export async function getEmailHealth(
     byCampaign.set(row.campaign, seen);
   }
 
+  /** Signups per UTC date, for the cohort column. */
+  const signupsByDate = new Map<string, number>();
+  for (const row of (signupCounts.data ?? []) as { created_at: string }[]) {
+    const day = row.created_at.slice(0, 10);
+    signupsByDate.set(day, (signupsByDate.get(day) ?? 0) + 1);
+  }
+  const cohortFor = (schedule: Schedule): number | null => {
+    if (schedule.kind !== "day") return null;
+    const d = new Date(now);
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - schedule.day);
+    return signupsByDate.get(d.toISOString().slice(0, 10)) ?? 0;
+  };
+
   const failuresByKind = new Map<string, number>();
   for (const f of fails) {
     failuresByKind.set(f.kind, (failuresByKind.get(f.kind) ?? 0) + 1);
@@ -318,6 +507,8 @@ export async function getEmailHealth(
       sent30d: tally?.c30 ?? 0,
       status: statusFor(def.expectation, lastSent, daysSince),
       failures30d: failuresByKind.get(def.family) ?? 0,
+      nextDueAt: nextDueAt(def.schedule, new Date(now)),
+      cohortNow: cohortFor(def.schedule),
     };
   });
 

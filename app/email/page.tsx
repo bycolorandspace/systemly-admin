@@ -46,6 +46,16 @@ export default async function EmailPage() {
             when a user or the market does something, so an empty month is a
             fact about the month.
           </p>
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            <strong>In cohort</strong> is how many accounts the next run will
+            look at, not how many it will write to. Every one of these then
+            applies its own condition at send time, and those live in the cron
+            rather than here on purpose: a second copy of the gating rules would
+            drift from the real one and quietly disagree with it. The schedules
+            behind <strong>Next run</strong> mirror the Inngest crons in the main
+            app. If the two ever disagree, the cron is right and this column is
+            wrong.
+          </p>
         </section>
 
         <section className="space-y-3">
