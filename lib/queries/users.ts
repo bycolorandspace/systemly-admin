@@ -1,23 +1,127 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { daysAgo } from "@/lib/utils";
+import { daysAgo, getMonthStart } from "@/lib/utils";
+
+/**
+ * Which kind of recent activity the list is ordered and filtered by.
+ *
+ * "all" keeps the default newest-signup order. The other two answer "who has
+ * been using this lately", which the join date cannot: an account from March
+ * that ran a signal yesterday is the one worth looking at, and it sits on page
+ * four by signup order.
+ */
+export type UserActivityFilter = "all" | "signal" | "academy";
+
+/**
+ * Academy use, as core can see it.
+ *
+ * Every academy table lives in a second Supabase project that this dashboard
+ * holds no credentials for (see `lib/queries/engagement.ts`). These four event
+ * names are mirrored into core's own `user_events` by `MIRRORED_EVENTS` in the
+ * main app's `config/analytics-events.ts`, so "when did they last open the
+ * academy" is answerable here without a second client or a proxy call.
+ *
+ * The three `Academy Suggestion *` events are deliberately left out: they fire
+ * on a card shown elsewhere in the app, so counting them would mark somebody as
+ * an academy user for having scrolled past an advert for it.
+ */
+const ACADEMY_EVENT_NAMES = [
+  "Academy Path Viewed",
+  "Academy Course Viewed",
+  "Academy Lesson Started",
+  "Academy Course Completed",
+];
+
+/**
+ * How many rows the activity filter reads before it stops, and how many users
+ * it will rank.
+ *
+ * Neither Postgres client here can group, so "most recent per user" is done by
+ * reading rows newest-first and keeping the first one seen per user. That means
+ * the filtered list is the most recently active few hundred accounts rather
+ * than every account that ever qualified, which is what the filter is for. The
+ * count shown alongside it is the size of that window, not a lifetime total.
+ */
+const ACTIVITY_ROW_SCAN = 5000;
+const ACTIVITY_USER_CAP = 500;
+
+/**
+ * User ids ordered by their most recent signal or academy event, newest first.
+ */
+async function getUsersByRecentActivity(
+  supabase: SupabaseClient,
+  activity: Exclude<UserActivityFilter, "all">,
+): Promise<string[]> {
+  // Two awaits rather than one builder held in a variable: the two tables give
+  // the query builder different generic types, and a ternary over them makes
+  // TypeScript give up on the chain that follows.
+  let data: { user_id: string | null }[] | null = null;
+
+  if (activity === "signal") {
+    // Community signals carry no owner, so they are not somebody's use of the
+    // product and must not put a null into the ranking.
+    const res = await supabase
+      .from("market_signal")
+      .select("user_id")
+      .not("user_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(ACTIVITY_ROW_SCAN);
+    data = res.data;
+  } else {
+    const res = await supabase
+      .from("user_events")
+      .select("user_id")
+      .in("event_name", ACADEMY_EVENT_NAMES)
+      .not("user_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(ACTIVITY_ROW_SCAN);
+    data = res.data;
+  }
+
+  const seen: string[] = [];
+  const have = new Set<string>();
+  for (const row of data ?? []) {
+    const uid = row.user_id as string;
+    if (have.has(uid)) continue;
+    have.add(uid);
+    seen.push(uid);
+    if (seen.length >= ACTIVITY_USER_CAP) break;
+  }
+  return seen;
+}
 
 export async function getUsersList(
   supabase: SupabaseClient,
   {
     search = "",
     tierFilter = "all",
+    activityFilter = "all",
     page = 0,
     pageSize = 50,
-  }: { search?: string; tierFilter?: string; page?: number; pageSize?: number }
+  }: {
+    search?: string;
+    tierFilter?: string;
+    activityFilter?: UserActivityFilter;
+    page?: number;
+    pageSize?: number;
+  }
 ) {
+  // Ranked ids first, because they decide both the order and the membership of
+  // the page that is about to be fetched.
+  const activityOrder =
+    activityFilter === "all"
+      ? null
+      : await getUsersByRecentActivity(supabase, activityFilter);
+
+  if (activityOrder && activityOrder.length === 0) {
+    return { users: [], total: 0 };
+  }
+
   let query = supabase
     .from("user_profiles")
     .select(
       `id, full_name, email, current_tier, created_at, onboarding_data`,
       { count: "exact" }
-    )
-    .order("created_at", { ascending: false })
-    .range(page * pageSize, (page + 1) * pageSize - 1);
+    );
 
   if (search) {
     query = query.or(
@@ -28,23 +132,52 @@ export async function getUsersList(
     query = query.eq("current_tier", tierFilter);
   }
 
-  const { data, count } = await query;
+  let rows: Record<string, unknown>[];
+  let total: number;
 
-  if (!data) return { users: [], total: 0 };
+  if (activityOrder) {
+    // Paged in memory: the order lives in `activityOrder`, which Postgres
+    // cannot sort by, so the window has to be complete before it is sliced.
+    const rank = new Map(activityOrder.map((id, i) => [id, i]));
+    const { data } = await query.in("id", activityOrder);
+    const ordered = (data ?? []).sort(
+      (a, b) =>
+        (rank.get(a.id as string) ?? Infinity) -
+        (rank.get(b.id as string) ?? Infinity),
+    );
+    total = ordered.length;
+    rows = ordered.slice(page * pageSize, (page + 1) * pageSize);
+  } else {
+    const { data, count } = await query
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+    rows = data ?? [];
+    total = count ?? 0;
+  }
 
-  const userIds = data.map((u) => u.id as string);
+  if (rows.length === 0) return { users: [], total };
 
-  const [signalCounts, lastActive, mt5Connected] = await Promise.all([
-    supabase
-      .from("usage_tracking")
-      .select("user_id, count")
-      .in("user_id", userIds)
-      .eq("usage_type", "signals"),
+  const userIds = rows.map((u) => u.id as string);
+
+  const [signalRows, academyRows, mt5Connected] = await Promise.all([
+    // Signals themselves, not the allowance ledger. `usage_tracking` is what a
+    // user has been charged for, and the main app deliberately does not charge
+    // for an account's first ever signal (`isFirstEverSignal` in its
+    // `lib/supabase/usage-service.ts`), so summing it reported 0 signals for
+    // everybody who had generated exactly one. Counting `market_signal` counts
+    // what was produced, which is what this column claims.
     supabase
       .from("market_signal")
       .select("user_id, created_at")
       .in("user_id", userIds)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("user_events")
+      .select("user_id, created_at")
+      .in("user_id", userIds)
+      .in("event_name", ACADEMY_EVENT_NAMES)
+      .order("created_at", { ascending: false })
+      .limit(ACTIVITY_ROW_SCAN),
     supabase
       .from("mt5_connections")
       .select("user_id")
@@ -52,21 +185,24 @@ export async function getUsersList(
       .eq("status", "connected"),
   ]);
 
-  const signalMap: Record<string, number> = {};
-  for (const r of signalCounts.data ?? []) {
+  const signalCount: Record<string, number> = {};
+  const lastSignalMap: Record<string, string> = {};
+  for (const r of signalRows.data ?? []) {
     const uid = r.user_id as string;
-    signalMap[uid] = (signalMap[uid] ?? 0) + Number(r.count);
+    signalCount[uid] = (signalCount[uid] ?? 0) + 1;
+    // Rows arrive newest first, so the first one seen per user is the latest.
+    if (!lastSignalMap[uid]) lastSignalMap[uid] = r.created_at as string;
   }
 
-  const lastActiveMap: Record<string, string> = {};
-  for (const r of lastActive.data ?? []) {
+  const lastAcademyMap: Record<string, string> = {};
+  for (const r of academyRows.data ?? []) {
     const uid = r.user_id as string;
-    if (!lastActiveMap[uid]) lastActiveMap[uid] = r.created_at as string;
+    if (!lastAcademyMap[uid]) lastAcademyMap[uid] = r.created_at as string;
   }
 
   const mt5Set = new Set((mt5Connected.data ?? []).map((r) => r.user_id as string));
 
-  const users = data.map((u) => ({
+  const users = rows.map((u) => ({
     id: u.id as string,
     fullName: (u.full_name as string) || "—",
     email: (u.email as string) || "—",
@@ -78,12 +214,13 @@ export async function getUsersList(
         ?.referral_source ?? null),
     tier: (u.current_tier as string) || "free",
     createdAt: u.created_at as string,
-    lifetimeSignals: signalMap[u.id as string] ?? 0,
-    lastActive: lastActiveMap[u.id as string] ?? null,
+    lifetimeSignals: signalCount[u.id as string] ?? 0,
+    lastSignalAt: lastSignalMap[u.id as string] ?? null,
+    lastAcademyAt: lastAcademyMap[u.id as string] ?? null,
     hasMt5: mt5Set.has(u.id as string),
   }));
 
-  return { users, total: count ?? 0 };
+  return { users, total };
 }
 
 export async function getUserDetail(supabase: SupabaseClient, userId: string) {
@@ -96,12 +233,17 @@ export async function getUserDetail(supabase: SupabaseClient, userId: string) {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(10),
+      // This calendar month only. `usage_tracking` holds one row per type per
+      // period, and a flat `limit(6)` reached back into previous months, so the
+      // drawer's "this month" bars were summing several of them together. The
+      // period boundary matches `getMonthlyPeriodStart()` in the main app's
+      // `lib/supabase/usage-service.ts`, which is what writes these rows.
       supabase
         .from("usage_tracking")
         .select("usage_type, count, period_start")
         .eq("user_id", userId)
-        .order("period_start", { ascending: false })
-        .limit(6),
+        .gte("period_start", getMonthStart().toISOString())
+        .order("period_start", { ascending: false }),
       supabase
         .from("subscriptions")
         .select("tier, status, current_period_start, current_period_end, canceled_at, stripe_subscription_id")

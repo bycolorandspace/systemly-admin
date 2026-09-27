@@ -403,16 +403,23 @@ export async function getSignalIntelligence(supabase: SupabaseClient) {
   };
 }
 
+/**
+ * Signals generated this month, which is what the AI was actually asked to do.
+ *
+ * Counted from `market_signal` rather than from `usage_tracking`, which is the
+ * allowance ledger and undercounts this twice over: the main app deliberately
+ * does not charge an account for its first ever signal (`isFirstEverSignal` in
+ * its `lib/supabase/usage-service.ts`), and community signals have no owner to
+ * charge at all, so neither left a row to sum. Both still cost a model call.
+ */
 export async function getAnthropicVolume(supabase: SupabaseClient) {
   const monthStart = getMonthStart().toISOString();
-  const { data } = await supabase
-    .from("usage_tracking")
-    .select("count")
-    .eq("usage_type", "signals")
-    .gte("period_start", monthStart);
+  const { count } = await supabase
+    .from("market_signal")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", monthStart);
 
-  const total = (data ?? []).reduce((sum, r) => sum + Number(r.count), 0);
-  return { callsThisMonth: total };
+  return { callsThisMonth: count ?? 0 };
 }
 
 export async function getCostBreakdown(supabase: SupabaseClient) {

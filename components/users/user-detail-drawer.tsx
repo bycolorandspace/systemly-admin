@@ -351,7 +351,7 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                 className="text-[10px] tracking-widest uppercase mb-3"
                 style={{ color: "var(--muted-foreground)" }}
               >
-                Usage (this month)
+                Allowance used (this month)
               </p>
               {["signals", "scans", "backtests"].map((type) => {
                 const used = (data?.usage ?? [])

@@ -21,10 +21,26 @@ interface User {
   referralSource: string | null;
   tier: string;
   createdAt: string;
+  /** Signals this account has generated, counted from `market_signal`. */
   lifetimeSignals: number;
-  lastActive: string | null;
+  lastSignalAt: string | null;
+  /** Last time they opened anything in the Academy. */
+  lastAcademyAt: string | null;
   hasMt5: boolean;
 }
+
+/**
+ * The activity filter's options.
+ *
+ * Both non-default options re-order the list by that activity, newest first,
+ * and drop everyone who has never done it. They answer "who is using this",
+ * which the default signup order cannot.
+ */
+const ACTIVITY_OPTIONS = [
+  { value: "all", label: "All activity" },
+  { value: "signal", label: "Generated a signal" },
+  { value: "academy", label: "Used Academy" },
+] as const;
 
 export function UsersTable({ initialUsers, initialTotal }: {
   initialUsers: User[];
@@ -34,19 +50,20 @@ export function UsersTable({ initialUsers, initialTotal }: {
   const [total, setTotal] = useState(initialTotal);
   const [search, setSearch] = useState("");
   const [tier, setTier] = useState("all");
+  const [activity, setActivity] = useState("all");
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ search, tier, page: String(page) });
+    const params = new URLSearchParams({ search, tier, activity, page: String(page) });
     const res = await fetch(`/api/admin/users?${params}`);
     const data = await res.json();
     setUsers(data.users);
     setTotal(data.total);
     setLoading(false);
-  }, [search, tier, page]);
+  }, [search, tier, activity, page]);
 
   useEffect(() => {
     const timer = setTimeout(fetchUsers, 300);
@@ -92,8 +109,22 @@ export function UsersTable({ initialUsers, initialTotal }: {
           <option value="plus">Plus</option>
           <option value="pro">Pro</option>
         </select>
+        <select
+          value={activity}
+          onChange={(e) => { setActivity(e.target.value); setPage(0); }}
+          className="text-sm rounded-md px-3 py-2 outline-none"
+          style={{
+            background: "var(--secondary)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground)",
+          }}
+        >
+          {ACTIVITY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
         <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
-          {total.toLocaleString()} users
+          {total.toLocaleString()} {activity === "all" ? "users" : "most recent"}
         </span>
       </div>
 
@@ -101,7 +132,7 @@ export function UsersTable({ initialUsers, initialTotal }: {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Name", "Email", "Found via", "Tier", "Joined", "Signals", "Last Active", "MT5"].map((h) => (
+              {["Name", "Email", "Found via", "Tier", "Joined", "Signals", "Last Signal", "Last Academy", "MT5"].map((h) => (
                 <th
                   key={h}
                   className="text-left px-6 py-3 text-[10px] font-medium tracking-widest uppercase"
@@ -161,7 +192,10 @@ export function UsersTable({ initialUsers, initialTotal }: {
                   {user.lifetimeSignals}
                 </td>
                 <td className="px-6 py-3.5" style={{ color: "var(--muted-foreground)" }}>
-                  {user.lastActive ? formatDate(user.lastActive) : "—"}
+                  {user.lastSignalAt ? formatDate(user.lastSignalAt) : "—"}
+                </td>
+                <td className="px-6 py-3.5" style={{ color: "var(--muted-foreground)" }}>
+                  {user.lastAcademyAt ? formatDate(user.lastAcademyAt) : "—"}
                 </td>
                 <td className="px-6 py-3.5">
                   <div
