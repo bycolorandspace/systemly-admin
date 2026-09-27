@@ -60,6 +60,8 @@ export type Schedule =
   | { kind: "monthly"; dayOfMonth: number }
   /** One weekday, in the 08:00 UTC sweep. 1 is Monday. */
   | { kind: "weekly"; weekday: number }
+  /** One weekday at its own hour, for a job with its own schedule. */
+  | { kind: "weeklyAt"; weekday: number; hourUtc: number }
   /** Fires when a person or the market does something, not on a clock. */
   | { kind: "event" }
   /** Sent by hand. */
@@ -181,6 +183,13 @@ export const EMAIL_REGISTRY: EmailDefinition[] = [
     schedule: { kind: "day", day: 60 },
   },
   {
+    family: "week-ahead",
+    label: "Week ahead",
+    trigger: "Sunday 17:00 UTC, to everyone, before the market opens",
+    expectation: { kind: "regular", maxSilentDays: 9 },
+    schedule: { kind: "weeklyAt", weekday: 0, hourUtc: 17 },
+  },
+  {
     family: "weekly-wins",
     label: "Weekly wins",
     trigger: "Mondays, unless the week lost money",
@@ -268,13 +277,16 @@ export function nextDueAt(schedule: Schedule, now: Date): string | null {
       if (next <= now) next = at(new Date(next.getTime() + 86_400_000), hour);
       return next.toISOString();
     }
-    case "weekly": {
-      let next = at(now, SWEEP_HOUR_UTC);
+    case "weekly":
+    case "weeklyAt": {
+      const hour =
+        schedule.kind === "weeklyAt" ? schedule.hourUtc : SWEEP_HOUR_UTC;
+      let next = at(now, hour);
       // getUTCDay() is 0 for Sunday; the schedule uses 1 for Monday.
       const target = schedule.weekday % 7;
       while (next <= now || next.getUTCDay() !== target) {
         next = new Date(next.getTime() + 86_400_000);
-        next = at(next, SWEEP_HOUR_UTC);
+        next = at(next, hour);
       }
       return next.toISOString();
     }
