@@ -276,7 +276,7 @@ export default async function ControlsPage() {
             <div className="space-y-3">
               <NumberConfigCard
                 label="Signals / month (Free)"
-                description="Default: 6. Users are shown the monthly figure only: the daily cap is display-only and signalAllowanceLabel() in the main app now hides it unless the month can sustain that pace, which 6 at 2 a day cannot."
+                description="Default: 2, at most 1 a day. The guided first signal in onboarding is extra and never counts, so a new free account gets 3 in its first month."
                 configKey="signals_per_month_free"
                 initialValue={signalsFree}
                 min={-1}
@@ -285,7 +285,7 @@ export default async function ControlsPage() {
               />
               <NumberConfigCard
                 label="Signals / month (Starter)"
-                description="Default: 30, shown to users as up to 1 a day."
+                description="Default: 6, at most 1 a day."
                 configKey="signals_per_month_starter"
                 initialValue={signalsStarter}
                 min={-1}

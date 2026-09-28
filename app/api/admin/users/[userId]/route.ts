@@ -13,11 +13,44 @@ export async function GET(
   // through the main app, so it is fetched alongside rather than joined.
   // `null` when that call fails: the drawer renders without the block rather
   // than showing a learner as having done nothing.
-  const [data, academy] = await Promise.all([
+  // Same month boundary the main app's usage counter uses.
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [data, academy, signalConfig, grants] = await Promise.all([
     getUserDetail(supabase, userId),
     getAcademyUserBrief(userId),
+    // The live per-tier signal allowances set on the Controls page. The main
+    // app reads the same rows (getSignalLimits in lib/system-config.ts), so the
+    // drawer shows what the user is actually held to, not the build default.
+    supabase
+      .from("system_config")
+      .select("key, value")
+      .like("key", "signals_per_month_%"),
+    // Extra signals earned this month (the Academy completion reward). Mirrors
+    // getSignalBonus in the main app's lib/rewards/signal-bonus.ts.
+    supabase
+      .from("reward_grants")
+      .select("payload, expires_at, reward_campaigns!inner(reward)")
+      .eq("user_id", userId)
+      .gte("granted_at", periodStart.toISOString()),
   ]);
-  return NextResponse.json({ ...data, academy });
+  let signalBonus = 0;
+  for (const row of (grants.data ?? []) as Record<string, any>[]) {
+    if (row.expires_at && new Date(row.expires_at).getTime() <= now.getTime()) continue;
+    const campaign = Array.isArray(row.reward_campaigns) ? row.reward_campaigns[0] : row.reward_campaigns;
+    const reward = campaign?.reward ?? row.payload?.reward;
+    if (reward?.type === "extra_signals" && typeof reward.amount === "number" && reward.amount > 0) {
+      signalBonus += reward.amount;
+    }
+  }
+  const signalLimits: Record<string, number> = {};
+  for (const row of signalConfig.data ?? []) {
+    const n = Number(row.value);
+    if (Number.isFinite(n)) {
+      signalLimits[row.key.replace("signals_per_month_", "")] = n;
+    }
+  }
+  return NextResponse.json({ ...data, academy, signalLimits, signalBonus });
 }
 
 const VALID_TIERS = ["free", "starter", "plus", "pro"] as const;

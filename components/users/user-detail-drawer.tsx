@@ -7,12 +7,14 @@ import { formatDate, formatGBP } from "@/lib/utils";
 
 const TIER_PRICES: Record<string, number> = { starter: 25, plus: 55, pro: 199 };
 // Mirrors TIER_CONFIG in the main app's config/tiers.ts (999 = unlimited).
-// Signals are the build defaults; the live value can be overridden on the
-// Controls page (signals_per_month_*). Plus gained 4 backtests on 2026-09-14,
-// and every signal number here had gone stale (they were half the real ones).
+// Signals are the build defaults only: the GET route returns the live values
+// from system_config (signals_per_month_*, set on the Controls page) and those
+// win. Free dropped to 2 and Starter to 6 on 2026-09-23. A free account's
+// guided first signal is exempt in the main app (isFirstEverSignal), so it
+// never shows as used here.
 const TIER_LIMITS: Record<string, Record<string, number>> = {
-  free: { signals: 6, scans: 0, backtests: 0 },
-  starter: { signals: 30, scans: 0, backtests: 0 },
+  free: { signals: 2, scans: 0, backtests: 0 },
+  starter: { signals: 6, scans: 0, backtests: 0 },
   plus: { signals: 60, scans: 10, backtests: 4 },
   pro: { signals: 999, scans: 999, backtests: 10 },
 };
@@ -85,7 +87,18 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
     | null
     | undefined;
   const tier = overrideTier || profile?.current_tier || "free";
-  const limits = TIER_LIMITS[tier] ?? TIER_LIMITS.free;
+  const liveSignals = data?.signalLimits?.[tier] as number | undefined;
+  const limits: Record<string, number> = {
+    ...(TIER_LIMITS[tier] ?? TIER_LIMITS.free),
+    // -1 is how system_config says unlimited; the bars below use 999.
+    ...(liveSignals !== undefined ? { signals: liveSignals < 0 ? 999 : liveSignals } : {}),
+  };
+  // Earned signals raise the limit, as withSignalBonus does in the main app:
+  // unlimited stays unlimited and a plan with none stays at none.
+  const signalBonus = Number(data?.signalBonus ?? 0);
+  if (signalBonus > 0 && limits.signals > 0 && limits.signals !== 999) {
+    limits.signals += signalBonus;
+  }
   const activeSub = (data?.subscriptions ?? []).find((s: any) => s.status === "active" || s.status === "trialing");
   const stripeSubId = activeSub?.stripe_subscription_id;
   const nextBillingDate = activeSub?.current_period_end;
