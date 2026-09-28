@@ -5,7 +5,8 @@ import { AcademyBrief } from "@/components/users/academy-brief";
 import { X, ExternalLink } from "lucide-react";
 import { formatDate, formatGBP } from "@/lib/utils";
 
-const TIER_PRICES: Record<string, number> = { starter: 25, plus: 55, pro: 199 };
+// Monthly list prices in GBP. Starter was £25 before 2026-09-23.
+const TIER_PRICES: Record<string, number> = { starter: 9.99, plus: 55, pro: 199 };
 // Mirrors TIER_CONFIG in the main app's config/tiers.ts (999 = unlimited).
 // Signals are the build defaults only: the GET route returns the live values
 // from system_config (signals_per_month_*, set on the Controls page) and those

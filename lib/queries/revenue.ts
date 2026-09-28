@@ -1,8 +1,11 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { daysAgo, formatShortDate } from "@/lib/utils";
 
+// Monthly list prices in GBP. Starter moved from £25 to £9.99 on 2026-09-23;
+// subscribers who joined before then still pay £25, so Starter revenue here is
+// a floor rather than an exact figure until they churn or switch.
 const TIER_PRICES: Record<string, number> = {
-  starter: 25,
+  starter: 9.99,
   plus: 55,
   pro: 199,
 };
