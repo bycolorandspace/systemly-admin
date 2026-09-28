@@ -1,128 +1,35 @@
 import { Header } from "@/components/layout/header";
-import { EmailTemplatePanel, type EmailTypeDef } from "@/components/controls/email-template-panel";
+import { EmailTemplatePanel } from "@/components/controls/email-template-panel";
+import { fetchEditableEmails } from "@/lib/queries/email-copy";
 
-const MAIN_APP_URL = process.env.MAIN_APP_URL ?? "http://localhost:3000";
-const CRON_SECRET = process.env.CRON_SECRET ?? "";
+export const dynamic = "force-dynamic";
 
-const EMAIL_DEFS: EmailTypeDef[] = [
-  {
-    type: "welcome",
-    label: "A — Welcome",
-    desc: "Sent when onboarding data is saved for the first time.",
-    previewParams: { firstName: "Alex", goal: "Supplement my income", experience: "1–3 years", skill: "Fairly confident" },
-    fields: [
-      { key: "subject", label: "Subject line" },
-      { key: "goal_learn", label: "Body — goal: Learn & develop skills", multiline: true },
-      { key: "goal_supplement", label: "Body — goal: Supplement my income", multiline: true },
-      { key: "goal_passive", label: "Body — goal: Grow passive income", multiline: true },
-      { key: "goal_fulltime", label: "Body — goal: Trade full-time", multiline: true },
-      { key: "goal_default", label: "Body — goal fallback", multiline: true },
-    ],
-  },
-  {
-    type: "founder-checkin",
-    label: "B — Founder Check-in",
-    desc: "2 hours after onboarding. Plain text, personal.",
-    previewParams: { firstName: "Alex" },
-    fields: [
-      { key: "subject", label: "Subject line" },
-      { key: "body", label: "Body (use \\n\\n for paragraph breaks)", multiline: true },
-    ],
-  },
-  {
-    type: "activation-nudge",
-    label: "C — Activation Nudge",
-    desc: "Day 3, if user has run zero scans.",
-    previewParams: { firstName: "Alex" },
-    fields: [
-      { key: "subject", label: "Subject line" },
-      { key: "body_intro", label: "Body intro", multiline: true },
-      { key: "body_steps", label: "Body steps", multiline: true },
-      { key: "cta_label", label: "CTA button label" },
-    ],
-  },
-  {
-    type: "community-momentum",
-    label: "F — Community Momentum",
-    desc: "Day 7, all users.",
-    previewParams: { firstName: "Alex", topSymbol: "XAU/USD", topPips: "847" },
-    fields: [
-      { key: "subject", label: "Subject line (use {pips}, {symbol})" },
-      { key: "body_intro", label: "Body intro (use {daysAgo})", multiline: true },
-      { key: "body_cta", label: "Body CTA paragraph", multiline: true },
-      { key: "cta_label", label: "CTA button label" },
-    ],
-  },
-  {
-    type: "first-win",
-    label: "H — First Win",
-    desc: "Triggered on user's very first TP hit.",
-    previewParams: { firstName: "Alex", symbol: "XAU/USD", alertType: "TP1", pips: "32" },
-    fields: [
-      { key: "subject", label: "Subject line (use {symbol}, {alertType}, {pips})" },
-      { key: "body_intro", label: "Body", multiline: true },
-      { key: "body_close", label: "Closing line" },
-    ],
-  },
-  {
-    type: "first-loss",
-    label: "I — First Loss",
-    desc: "Triggered on user's first SL hit (no prior TP hits).",
-    previewParams: { firstName: "Alex", symbol: "XAU/USD", pips: "-18" },
-    fields: [
-      { key: "subject", label: "Subject line (use {symbol})" },
-      { key: "body_intro", label: "Body intro", multiline: true },
-      { key: "body_core", label: "Body core (expectancy explanation)", multiline: true },
-      { key: "body_close", label: "Closing line" },
-    ],
-  },
-  {
-    type: "monthly-recap",
-    label: "J — Monthly Recap",
-    desc: "Day 30.",
-    previewParams: { firstName: "Alex" },
-    fields: [
-      { key: "subject", label: "Subject line" },
-      { key: "body_intro", label: "Body — user has data", multiline: true },
-      { key: "body_no_data", label: "Body — user has no data", multiline: true },
-      { key: "body_close", label: "Closing line" },
-      { key: "cta_label", label: "CTA button label" },
-    ],
-  },
-  {
-    type: "winback-updates",
-    label: "K — Winback (Day 60)",
-    desc: "Sent if user inactive for 30+ days. Reads live DB for changelog.",
-    previewParams: { firstName: "Alex" },
-    fields: [
-      { key: "subject", label: "Subject line (use {firstName})" },
-      { key: "founder_letter", label: "Founder letter (use \\n\\n for paragraphs)", multiline: true },
-      { key: "body_close", label: "Closing line" },
-      { key: "cta_label", label: "CTA button label" },
-      { key: "changelog_entries", label: "Changelog entries", json: true },
-    ],
-  },
-];
+export default async function EmailsPage() {
+  const { emails, error } = await fetchEditableEmails();
 
-export default function EmailsPage() {
   return (
     <>
       <Header title="Email Templates" />
       <div className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
           <p className="text-sm text-muted-foreground">
-            Edit copy for all lifecycle emails. Changes take effect on the next send — no deploy needed.
-            Preview renders the live DB copy. Send test delivers via Resend.
+            Every email whose words can be changed without a deploy. Each field shows what the email says now.
+            Changes take effect on the next send.
           </p>
 
-          {EMAIL_DEFS.map((def) => (
-            <details key={def.type} className="border rounded-lg">
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          {emails.map((email) => (
+            <details key={email.type} className="border rounded-lg">
               <summary className="px-4 py-3 cursor-pointer text-sm font-medium hover:bg-accent/50 rounded-lg">
-                {def.label}
-                <span className="ml-2 text-xs text-muted-foreground font-normal">{def.desc}</span>
+                {email.name}
+                <span className="ml-2 text-xs text-muted-foreground font-normal">{email.when}</span>
+                {email.fields.some((f) => f.savedValue !== null) && (
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">· has custom copy</span>
+                )}
               </summary>
               <div className="px-4 pb-4 pt-2 border-t">
-                <EmailTemplatePanel def={def} mainAppUrl={MAIN_APP_URL} cronSecret={CRON_SECRET} />
+                <EmailTemplatePanel email={email} />
               </div>
             </details>
           ))}

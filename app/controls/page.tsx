@@ -171,7 +171,7 @@ export default async function ControlsPage() {
               />
               <ToggleCard
                 label="New Signal Flow"
-                description="Switches /scans/new to the rebuilt one-screen flow and adds the first-signal step at the end of onboarding. Off keeps the current four-step form and ends onboarding on /scans/new. Testers can preview it per browser with ?ff:newScanFlow=on without turning it on here. Takes up to 60s to take effect."
+                description="Switches /signals/new to the rebuilt one-screen flow and adds the first-signal step at the end of onboarding. Off keeps the current four-step form and ends onboarding on /signals/new. Testers can preview it per browser with ?ff:newScanFlow=on without turning it on here. Takes up to 60s to take effect."
                 paused={health.newScanFlowPaused}
                 configKey="new_scan_flow"
               />

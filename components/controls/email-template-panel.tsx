@@ -1,61 +1,73 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
-export type EmailFieldDef = {
-  key: string;
-  label: string;
-  multiline?: boolean;
-  json?: boolean; // changelog_entries: render as structured list
-};
-
-export type EmailTypeDef = {
-  type: string;
-  label: string;
-  desc: string;
-  fields: EmailFieldDef[];
-  previewParams?: Record<string, string>;
-};
+import { useState } from "react";
+import type { EditableEmail } from "@/lib/queries/email-copy";
+import { ChangelogEditor } from "@/components/controls/changelog-editor";
 
 interface Props {
-  def: EmailTypeDef;
-  mainAppUrl: string;
-  cronSecret: string;
+  email: EditableEmail;
 }
 
-export function EmailTemplatePanel({ def, mainAppUrl, cronSecret }: Props) {
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+/** "body_intro" -> "Body intro". The keys are the sender's own field names. */
+function labelFor(key: string): string {
+  const words = key.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * Edit one email's copy.
+ *
+ * Every field starts filled with what the email currently says: the saved
+ * override if there is one, otherwise the default from the main app's sender.
+ * Saving a field back to its default, or clearing it, removes the override, so
+ * the email follows the code again (the main app decides that, not this form).
+ *
+ * Load, save, preview and test-send all go through the admin's own server
+ * (`app/api/admin/email/...`), which adds the main app's CRON_SECRET there.
+ * This component must never receive that token: anything passed as a prop to a
+ * client component is serialised into the page HTML.
+ */
+export function EmailTemplatePanel({ email }: Props) {
+  const initial = Object.fromEntries(
+    email.fields.map((f) => [f.key, f.savedValue ?? f.defaultValue]),
+  );
+  const [fields, setFields] = useState<Record<string, string>>(initial);
+  const [custom, setCustom] = useState<Record<string, boolean>>(
+    Object.fromEntries(email.fields.map((f) => [f.key, f.savedValue !== null])),
+  );
   const [saving, setSaving] = useState(false);
   const [testTo, setTestTo] = useState("");
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${cronSecret}` };
-
-  useEffect(() => {
-    fetch(`${mainAppUrl}/api/admin/email/copy?type=${def.type}`, { headers: { Authorization: `Bearer ${cronSecret}` } })
-      .then((r) => r.json())
-      .then((data) => {
-        const map: Record<string, string> = {};
-        for (const f of data.fields ?? []) map[f.field_key] = f.value;
-        setFields(map);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [def.type, mainAppUrl, cronSecret]);
+  const defaults = Object.fromEntries(email.fields.map((f) => [f.key, f.defaultValue]));
+  const set = (key: string, value: string) => setFields((prev) => ({ ...prev, [key]: value }));
 
   async function handleSave() {
     setSaving(true);
     setStatus(null);
     try {
-      const res = await fetch(`${mainAppUrl}/api/admin/email/copy`, {
+      const res = await fetch("/api/admin/email/copy", {
         method: "POST",
-        headers,
-        body: JSON.stringify({ emailType: def.type, fields }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailType: email.type, fields }),
       });
       const json = await res.json();
-      setStatus(res.ok ? `✓ Saved ${json.upserted} fields` : `✗ ${json.error}`);
+      if (res.ok) {
+        setCustom(
+          Object.fromEntries(
+            Object.entries(fields).map(([k, v]) => [k, v.trim() !== "" && v !== defaults[k]]),
+          ),
+        );
+        setFields((prev) =>
+          Object.fromEntries(
+            Object.entries(prev).map(([k, v]) => [k, v.trim() === "" ? defaults[k] : v]),
+          ),
+        );
+        setStatus(`✓ Saved. ${json.upserted} custom, ${json.reset} on default.`);
+      } else {
+        setStatus(`✗ ${json.error}`);
+      }
     } catch (err) {
       setStatus(`✗ ${String(err)}`);
     } finally {
@@ -68,10 +80,10 @@ export function EmailTemplatePanel({ def, mainAppUrl, cronSecret }: Props) {
     setSending(true);
     setStatus(null);
     try {
-      const res = await fetch(`${mainAppUrl}/api/admin/email/send`, {
+      const res = await fetch("/api/admin/email/send", {
         method: "POST",
-        headers,
-        body: JSON.stringify({ type: def.type, to: testTo }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: email.type, to: testTo }),
       });
       const json = await res.json();
       setStatus(res.ok ? `✓ Sent to ${testTo}` : `✗ ${json.error}`);
@@ -82,61 +94,84 @@ export function EmailTemplatePanel({ def, mainAppUrl, cronSecret }: Props) {
     }
   }
 
-  const previewUrl = `${mainAppUrl}/api/email-preview/${def.type}${def.previewParams ? "?" + new URLSearchParams(def.previewParams).toString() : ""}`;
-
-  if (loading) {
-    return <div className="text-sm text-muted-foreground p-4">Loading…</div>;
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-semibold text-sm">{def.label}</p>
-          <p className="text-xs text-muted-foreground">{def.desc}</p>
-        </div>
-        <a href={previewUrl} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 border rounded-md hover:bg-accent">
-          Preview
-        </a>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs text-muted-foreground">
+          Fields marked Custom override the default in code. Reset puts the default back; save to apply.
+        </p>
+        {email.preview && (
+          <a
+            href={`/api/admin/email/preview/${email.type}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Renders the saved copy, not unsaved edits"
+            className="shrink-0 text-xs px-3 py-1.5 border rounded-md hover:bg-accent"
+          >
+            Preview saved
+          </a>
+        )}
       </div>
 
-      {def.fields.map((f) =>
-        f.json ? (
-          <ChangelogEditor key={f.key} value={fields[f.key] ?? "[]"} onChange={(v) => setFields((prev) => ({ ...prev, [f.key]: v }))} />
-        ) : (
+      {email.fields.map((f) => {
+        const value = fields[f.key] ?? "";
+        const edited = value !== defaults[f.key];
+        return (
           <div key={f.key}>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">{f.label}</label>
-            {f.multiline ? (
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {labelFor(f.key)}
+                {custom[f.key] && (
+                  <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] bg-accent text-foreground">Custom</span>
+                )}
+              </label>
+              {edited && (
+                <button
+                  type="button"
+                  onClick={() => set(f.key, f.defaultValue)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Reset to default
+                </button>
+              )}
+            </div>
+            {f.json ? (
+              <ChangelogEditor value={value || "[]"} onChange={(v) => set(f.key, v)} />
+            ) : value.length > 80 || value.includes("\n") || f.defaultValue.length > 80 ? (
               <textarea
-                rows={4}
+                rows={Math.min(10, Math.max(3, Math.ceil(value.length / 90) + value.split("\n").length - 1))}
                 className="w-full text-sm border rounded-md p-2 resize-y font-mono bg-background"
-                value={fields[f.key] ?? ""}
-                onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                value={value}
+                onChange={(e) => set(f.key, e.target.value)}
               />
             ) : (
               <input
                 type="text"
                 className="w-full text-sm border rounded-md p-2 bg-background"
-                value={fields[f.key] ?? ""}
-                onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                value={value}
+                onChange={(e) => set(f.key, e.target.value)}
               />
             )}
           </div>
-        )
-      )}
+        );
+      })}
 
       <div className="flex items-center gap-2 pt-2">
-        <input
-          type="email"
-          placeholder="test@example.com"
-          value={testTo}
-          onChange={(e) => setTestTo(e.target.value)}
-          className="flex-1 text-sm border rounded-md p-2 bg-background"
-        />
-        <button onClick={handleSend} disabled={sending} className="text-sm px-3 py-1.5 border rounded-md hover:bg-accent disabled:opacity-50">
-          {sending ? "Sending…" : "Send test"}
-        </button>
-        <button onClick={handleSave} disabled={saving} className="text-sm px-3 py-1.5 bg-foreground text-background rounded-md hover:opacity-80 disabled:opacity-50">
+        {email.testSend && (
+          <>
+            <input
+              type="email"
+              placeholder="test@example.com"
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              className="flex-1 text-sm border rounded-md p-2 bg-background"
+            />
+            <button onClick={handleSend} disabled={sending} className="text-sm px-3 py-1.5 border rounded-md hover:bg-accent disabled:opacity-50">
+              {sending ? "Sending…" : "Send test"}
+            </button>
+          </>
+        )}
+        <button onClick={handleSave} disabled={saving} className="ml-auto text-sm px-3 py-1.5 bg-foreground text-background rounded-md hover:opacity-80 disabled:opacity-50">
           {saving ? "Saving…" : "Save copy"}
         </button>
       </div>
@@ -144,61 +179,6 @@ export function EmailTemplatePanel({ def, mainAppUrl, cronSecret }: Props) {
       {status && (
         <p className={`text-xs ${status.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>{status}</p>
       )}
-    </div>
-  );
-}
-
-// ── Structured changelog entry editor ────────────────────────────────────────
-
-type Entry = { title: string; description: string };
-
-function ChangelogEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  let entries: Entry[] = [];
-  try { entries = JSON.parse(value); } catch { /* start empty */ }
-
-  function update(next: Entry[]) {
-    onChange(JSON.stringify(next));
-  }
-
-  function addEntry() {
-    update([...entries, { title: "", description: "" }]);
-  }
-
-  function removeEntry(i: number) {
-    update(entries.filter((_, idx) => idx !== i));
-  }
-
-  function editEntry(i: number, field: keyof Entry, val: string) {
-    update(entries.map((e, idx) => (idx === i ? { ...e, [field]: val } : e)));
-  }
-
-  return (
-    <div>
-      <label className="block text-xs font-medium mb-2 text-muted-foreground">Changelog entries (shown in winback email)</label>
-      <div className="space-y-3">
-        {entries.map((entry, i) => (
-          <div key={i} className="border rounded-md p-3 space-y-2 relative">
-            <button onClick={() => removeEntry(i)} className="absolute top-2 right-2 text-xs text-muted-foreground hover:text-red-500">✕</button>
-            <input
-              type="text"
-              placeholder="Title"
-              className="w-full text-sm border rounded p-1.5 bg-background"
-              value={entry.title}
-              onChange={(e) => editEntry(i, "title", e.target.value)}
-            />
-            <textarea
-              rows={2}
-              placeholder="Description"
-              className="w-full text-sm border rounded p-1.5 resize-none bg-background"
-              value={entry.description}
-              onChange={(e) => editEntry(i, "description", e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-      <button onClick={addEntry} className="mt-2 text-xs px-3 py-1.5 border rounded-md hover:bg-accent">
-        + Add entry
-      </button>
     </div>
   );
 }
