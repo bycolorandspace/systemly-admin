@@ -1,3 +1,4 @@
+import type { TierSource } from "@/lib/tier-source";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { daysAgo, getMonthStart } from "@/lib/utils";
 
@@ -119,7 +120,7 @@ export async function getUsersList(
   let query = supabase
     .from("user_profiles")
     .select(
-      `id, full_name, email, current_tier, created_at, onboarding_data`,
+      `id, full_name, email, current_tier, tier_source, created_at, onboarding_data`,
       { count: "exact" }
     );
 
@@ -213,6 +214,9 @@ export async function getUsersList(
       ((u.onboarding_data as { referral_source?: string } | null)
         ?.referral_source ?? null),
     tier: (u.current_tier as string) || "free",
+    // Where the plan came from: stripe, admin, unrecorded, or null when
+    // nothing has been recorded since 29 September 2026.
+    tierSource: (u.tier_source as TierSource | null) ?? null,
     createdAt: u.created_at as string,
     lifetimeSignals: signalCount[u.id as string] ?? 0,
     lastSignalAt: lastSignalMap[u.id as string] ?? null,
@@ -224,7 +228,7 @@ export async function getUsersList(
 }
 
 export async function getUserDetail(supabase: SupabaseClient, userId: string) {
-  const [profile, signals, usageRows, subscriptions] =
+  const [profile, signals, usageRows, subscriptions, tierHistory] =
     await Promise.all([
       supabase.from("user_profiles").select("*").eq("id", userId).single(),
       supabase
@@ -250,13 +254,45 @@ export async function getUserDetail(supabase: SupabaseClient, userId: string) {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(5),
+      // Where the plan came from, over time. The main app's database appends
+      // one of these on every change to the tier, its source or the trial
+      // (log_tier_change, systemlyai 20260929192907_tier_source.sql). Nothing
+      // exists before 29 September 2026.
+      supabase
+        .from("security_events")
+        .select("event_type, created_at, metadata")
+        .eq("user_id", userId)
+        .in("event_type", ["tier.changed", "trial.changed"])
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
+
+  // Name the admins behind any grant, current or past. Ids, not emails, are
+  // what is stored, so an admin whose email changes is still named correctly.
+  const grantorIds = new Set<string>();
+  for (const id of [profile.data?.tier_granted_by, profile.data?.trial_granted_by]) {
+    if (typeof id === "string") grantorIds.add(id);
+  }
+  for (const e of tierHistory.data ?? []) {
+    const id = (e.metadata as { granted_by?: unknown } | null)?.granted_by;
+    if (typeof id === "string") grantorIds.add(id);
+  }
+  const grantors: Record<string, string> = {};
+  if (grantorIds.size > 0) {
+    const { data: admins } = await supabase
+      .from("user_profiles")
+      .select("id, email")
+      .in("id", [...grantorIds]);
+    for (const a of admins ?? []) grantors[a.id as string] = (a.email as string) ?? a.id;
+  }
 
   return {
     profile: profile.data,
     signals: signals.data ?? [],
     usage: usageRows.data ?? [],
     subscriptions: subscriptions.data ?? [],
+    tierHistory: tierHistory.data ?? [],
+    grantors,
   };
 }
 

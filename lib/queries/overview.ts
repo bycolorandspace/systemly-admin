@@ -28,6 +28,7 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     academyInHeaderConfig,
     riskDoctorExecuteConfig,
     bounceOddsConfig,
+    newsGateConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -107,6 +108,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "bounce_odds")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "news_gate")
+        .maybeSingle(),
     ]);
 
   return {
@@ -181,6 +187,10 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     // page says where the move to a target is likely to turn back, with odds.
     bounceOddsPaused:
       (bounceOddsConfig.data?.value as { paused?: boolean } | null)?.paused ??
+      false,
+    // Defaults to LIVE, matching getNewsGateEnabled() in the main app.
+    newsGatePaused:
+      (newsGateConfig.data?.value as { paused?: boolean } | null)?.paused ??
       false,
   };
 }

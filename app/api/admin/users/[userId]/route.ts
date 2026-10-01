@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { createAdminClient, createRouteClient } from "@/lib/supabase";
 import { getUserDetail } from "@/lib/queries/users";
 import { getAcademyUserBrief } from "@/lib/queries/engagement";
 
@@ -66,11 +66,24 @@ export async function PATCH(
   const { userId } = await params;
   const body = await req.json();
 
+  // Who is doing this. proxy.ts has already checked is_super; this is only to
+  // put the admin's id on the grant, so the drawer can say "Admin grant by X"
+  // rather than leaving a paid plan nobody can account for. A grant with no
+  // name on it is exactly what this record exists to stop, so refuse rather
+  // than write one.
+  const {
+    data: { user: admin },
+  } = await createRouteClient(req).auth.getUser();
+  if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const updateFields: Record<string, unknown> = {};
 
   if ("trialEndsAt" in body) {
     if (!body.trialEndsAt) return NextResponse.json({ error: "trialEndsAt must be a date string" }, { status: 400 });
     updateFields.trial_ends_at = body.trialEndsAt;
+    updateFields.trial_granted_by = admin.id;
   }
 
   if ("trialTier" in body) {
@@ -79,12 +92,14 @@ export async function PATCH(
       updateFields.trial_tier = null;
       updateFields.trial_ends_at = null;
       updateFields.trial_source = null;
+      updateFields.trial_granted_by = null;
     } else if (!VALID_TRIAL_TIERS.includes(body.trialTier)) {
       return NextResponse.json({ error: "Invalid trialTier" }, { status: 400 });
     } else {
       updateFields.trial_tier = body.trialTier;
       updateFields.trial_source = body.trialSource ?? "admin";
       updateFields.trial_granted_at = new Date().toISOString();
+      updateFields.trial_granted_by = admin.id;
     }
   }
 
@@ -93,6 +108,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
     }
     updateFields.current_tier = body.tier;
+    // Where the plan came from. Same columns the main app writes for Stripe
+    // (systemlyai helpers/tier-source.ts); change both if the set changes.
+    // Moving tier_source_at is what tells the database this write declared
+    // its source; without it the change is recorded as "unrecorded".
+    updateFields.tier_source = "admin";
+    updateFields.tier_source_at = new Date().toISOString();
+    updateFields.tier_granted_by = admin.id;
+    updateFields.tier_source_note =
+      typeof body.tierNote === "string" && body.tierNote.trim()
+        ? body.tierNote.trim().slice(0, 200)
+        : null;
   }
 
   if (Object.keys(updateFields).length === 0) {

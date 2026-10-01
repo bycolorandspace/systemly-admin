@@ -21,8 +21,19 @@ export default async function ControlsPage() {
     (allConfigs ?? []).map((c) => [c.key, c.value]),
   );
   const defaultTrialDays = Number(
-    (configMap["default_trial_days"] as number | undefined) ?? 3,
+    (configMap["default_trial_days"] as number | undefined) ?? 7,
   );
+  // Default on, matching CANCEL_SAVE_OFFER_DEFAULT in the main app.
+  const cancelSaveOfferPaused =
+    (configMap["cancel_save_offer"] as { paused?: boolean } | undefined)?.paused ?? false;
+  // Off (paused) by default, matching getStripeReconcileEnforce() in the main
+  // app's lib/system-config.ts: no row means report only.
+  const stripeReconcileEnforcePaused =
+    (configMap["stripe_reconcile_enforce"] as { paused?: boolean } | undefined)?.paused ?? true;
+  // Off (paused) by default, matching WHATSAPP_REQUIRE_VERIFIED_PHONE_DEFAULT
+  // in the main app's config/whatsapp.ts: no row means any number on file.
+  const whatsappRequireVerifiedPaused =
+    (configMap["whatsapp_require_verified_phone"] as { paused?: boolean } | undefined)?.paused ?? true;
   const shareExpiryHours = Number(
     (configMap["share_expiry_hours"] as number | undefined) ?? 168,
   );
@@ -32,6 +43,17 @@ export default async function ControlsPage() {
   const emailSenderRole = String(
     (configMap["email_sender_role"] as string | undefined) ?? "Community Manager",
   );
+  // Unset means the email code step is not live yet. Read by
+  // getEmailCodeStepLiveFrom() in the main app's lib/system-config.ts, which
+  // also accepts { from } like the age gate.
+  const emailCodeStepLiveFromRaw = configMap["email_code_step_live_from"] as
+    | string
+    | { from?: string }
+    | undefined;
+  const emailCodeStepLiveFrom =
+    typeof emailCodeStepLiveFromRaw === "string"
+      ? emailCodeStepLiveFromRaw
+      : (emailCodeStepLiveFromRaw?.from ?? "");
 
   // Community notifications config (fallback defaults match config/tiers.ts)
   const communitySymbolsStarter = String(
@@ -66,6 +88,42 @@ export default async function ControlsPage() {
   );
   const signalsPro = Number(
     (configMap["signals_per_month_pro"] as number | undefined) ?? -1,
+  );
+
+  // Fair use ceilings behind any unlimited allowance. Fallbacks match
+  // FAIR_USE_DAILY_CEILING and FAIR_USE_MONTHLY_CEILING in the main app's
+  // config/fair-use.ts. The main app ignores anything below 1 and uses the
+  // fallback instead, so a ceiling cannot be switched off from here.
+  const fairUsePerDay = Number(
+    (configMap["fair_use_daily_ceiling"] as number | undefined) ?? 40,
+  );
+  const fairUsePerMonth = Number(
+    (configMap["fair_use_monthly_ceiling"] as number | undefined) ?? 400,
+  );
+
+  // Public market data limits on /api/price and /api/market-data. Fallbacks
+  // match config/public-market-data.ts in the main app. The main app bounds
+  // these when it reads them (helpers/public-market-limits.ts), whatever is
+  // saved here: below 1 is ignored, per-caller limits are capped at 1000, each
+  // budget at 34, and the two budgets together at 35 of the 55-credit Twelve
+  // Data plan, so scans always keep 20. The card min and max are only hints.
+  const publicPricePerIp = Number(
+    (configMap["public_price_per_ip_per_minute"] as number | undefined) ?? 120,
+  );
+  const publicPricePerUser = Number(
+    (configMap["public_price_per_user_per_minute"] as number | undefined) ?? 60,
+  );
+  const publicMarketDataPerIp = Number(
+    (configMap["public_market_data_per_ip_per_minute"] as number | undefined) ?? 20,
+  );
+  const publicMarketDataPerUser = Number(
+    (configMap["public_market_data_per_user_per_minute"] as number | undefined) ?? 20,
+  );
+  const publicPriceCredits = Number(
+    (configMap["public_price_credits_per_minute"] as number | undefined) ?? 20,
+  );
+  const publicMarketDataCredits = Number(
+    (configMap["public_market_data_credits_per_minute"] as number | undefined) ?? 8,
   );
 
   // Exit placement. Fallbacks match MAX_AGE_HOURS_BY_STYLE and
@@ -212,6 +270,12 @@ export default async function ControlsPage() {
                 configKey="bounce_odds"
               />
               <ToggleCard
+                label="News Gate"
+                description="Automatic strategy and community scans skip a market when a major scheduled release (US jobs report, US inflation, or a rate decision by the Fed, ECB, BoE, BoJ, BoC, RBA, RBNZ or SNB) lands during the trade, and users' own scans carry a news-day warning instead. LIVE by default. Pausing it stops both: every market is scanned and no new warnings are written. The weekly calendar fetch keeps running either way. Takes up to 60s to take effect."
+                paused={health.newsGatePaused}
+                configKey="news_gate"
+              />
+              <ToggleCard
                 label="Community Feed"
                 description="Shows the /feed page and Share-to-Feed buttons. No AI credits — display only."
                 paused={health.communityFeedPaused}
@@ -237,12 +301,24 @@ export default async function ControlsPage() {
             <div className="space-y-3">
               <NumberConfigCard
                 label="Default Trial Length"
-                description="Days granted via Stripe trial at checkout. Main app reads this live and words every CTA from it: 3 reads as 'Start 3 day access', 2 or fewer as '48 hour'."
+                description="Days granted via Stripe trial at checkout. Main app reads this live and words every CTA from it: 7 reads as 'Start 7 day access', 2 or fewer as '48 hour'. The landing site keeps its own copy in systemly-landing lib/trial.ts; change both together."
                 configKey="default_trial_days"
                 initialValue={defaultTrialDays}
                 min={0}
                 max={365}
                 unit="days"
+              />
+              <ToggleCard
+                label="Billing Reconcile: Correct Plans"
+                description="Every morning the feed health email compares every Stripe subscription with the plan on the account, using the same rule as the webhooks. PAUSED (the default) only reports what it finds. LIVE also corrects each account that does not match Stripe, up to 25 a day; an admin grant is never lowered. Switch it on after a week of reports you agree with."
+                paused={stripeReconcileEnforcePaused}
+                configKey="stripe_reconcile_enforce"
+              />
+              <ToggleCard
+                label="Cancel Flow: Free Month of Plus"
+                description="Offers one free month of Plus to eligible people who give a reason for cancelling in Settings > Billing. Once per account. Nobody sees it until STRIPE_CANCEL_SAVE_COUPON_ID is set in the main app."
+                paused={cancelSaveOfferPaused}
+                configKey="cancel_save_offer"
               />
               <NumberConfigCard
                 label="Share Link Expiry"
@@ -309,6 +385,102 @@ export default async function ControlsPage() {
                 min={-1}
                 max={10000}
                 unit="/ month"
+              />
+              <NumberConfigCard
+                label="Fair use ceiling / day"
+                description="Default: 40. The most signals or opportunity scans any unlimited allowance can run in one UTC day. Applies to whichever plan is unlimited, not only Pro. Reaching it pauses the account until midnight UTC and emails the internal inbox once."
+                configKey="fair_use_daily_ceiling"
+                initialValue={fairUsePerDay}
+                min={1}
+                max={10000}
+                unit="/ day"
+              />
+              <NumberConfigCard
+                label="Fair use ceiling / month"
+                description="Default: 400. The same ceiling per calendar month. The busiest real month to 29 September 2026 was 170. Values below 1 are ignored and the default applies."
+                configKey="fair_use_monthly_ceiling"
+                initialValue={fairUsePerMonth}
+                min={1}
+                max={100000}
+                unit="/ month"
+              />
+            </div>
+          </section>
+
+          {/* Public market data */}
+          <section>
+            <p
+              className="text-[10px] tracking-widest uppercase mb-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Public Market Data
+            </p>
+            <p
+              className="text-xs mb-4"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Limits on the two public price routes, /api/price (live trade
+              panels) and /api/market-data (candles for the mobile apps). Live
+              within a minute, no redeploy. The two budgets share the 55-credit
+              Twelve Data plan with scans: together they are held to 35 a
+              minute so scans always keep 20. If the two add up to more, the
+              price budget is kept and the market data budget is lowered to
+              fit. Values below 1 are ignored and the default applies.
+            </p>
+            <div className="space-y-3">
+              <NumberConfigCard
+                label="Price budget (all callers)"
+                description="Default: 20. Twelve Data credits /api/price may spend per minute across everyone. One market watched continuously costs at most 12. When spent, polls get a 503 and panels keep their last price. At most 34."
+                configKey="public_price_credits_per_minute"
+                initialValue={publicPriceCredits}
+                min={1}
+                max={34}
+                unit="credits / min"
+              />
+              <NumberConfigCard
+                label="Market data budget (all callers)"
+                description="Default: 8. Twelve Data credits /api/market-data may spend per minute across everyone; one chart load costs 3 or 4. Nothing calls it yet. Lowered automatically if price plus this exceeds 35."
+                configKey="public_market_data_credits_per_minute"
+                initialValue={publicMarketDataCredits}
+                min={1}
+                max={34}
+                unit="credits / min"
+              />
+              <NumberConfigCard
+                label="Price requests per address"
+                description="Default: 120, ten people on one address watching a live trade. Every web viewer is counted here. Guards our invocation cost, not the Twelve Data plan. At most 1000."
+                configKey="public_price_per_ip_per_minute"
+                initialValue={publicPricePerIp}
+                min={1}
+                max={1000}
+                unit="/ min"
+              />
+              <NumberConfigCard
+                label="Price requests per account"
+                description="Default: 60, five app screens polling every five seconds. Callers with a Bearer token. Their address ceiling is ten times this. At most 1000."
+                configKey="public_price_per_user_per_minute"
+                initialValue={publicPricePerUser}
+                min={1}
+                max={1000}
+                unit="/ min"
+              />
+              <NumberConfigCard
+                label="Market data requests per address"
+                description="Default: 20, a new chart every three seconds. At most 1000."
+                configKey="public_market_data_per_ip_per_minute"
+                initialValue={publicMarketDataPerIp}
+                min={1}
+                max={1000}
+                unit="/ min"
+              />
+              <NumberConfigCard
+                label="Market data requests per account"
+                description="Default: 20. Callers with a Bearer token. Their address ceiling is ten times this. At most 1000."
+                configKey="public_market_data_per_user_per_minute"
+                initialValue={publicMarketDataPerUser}
+                min={1}
+                max={1000}
+                unit="/ min"
               />
             </div>
           </section>
@@ -421,6 +593,13 @@ export default async function ControlsPage() {
                 initialValue={emailSenderRole}
                 placeholder="e.g. Community Manager"
               />
+              <TextConfigCard
+                label="Email code step live from"
+                description="The one switch for email confirmation. Set an ISO time and, from that moment, password sign-ups are offered the code step after the plan step, Settings shows the Email confirmation card, and invited friends get one reminder; promotional email also skips unconfirmed accounts created after it, and referrals whose friend never confirms are written off 30 days after it. A future time schedules it. Clear it to switch all of that off. See config/email-verification.ts in the main app."
+                configKey="email_code_step_live_from"
+                initialValue={emailCodeStepLiveFrom}
+                placeholder="e.g. 2026-10-06T09:00:00Z"
+              />
             </div>
           </section>
 
@@ -441,6 +620,12 @@ export default async function ControlsPage() {
               Changes take effect on the next cron run — no redeploy needed.
             </p>
             <div className="space-y-3">
+              <ToggleCard
+                label="WhatsApp: Verified Numbers Only"
+                description="LIVE sends WhatsApp alerts only to numbers the user has verified. PAUSED (the default) sends to any number on file, as before 30 September 2026. There is no phone verification flow yet, so switching this on today stops every WhatsApp alert. Switch it on the day that flow ships. Read once per scan or cron run, no redeploy."
+                paused={whatsappRequireVerifiedPaused}
+                configKey="whatsapp_require_verified_phone"
+              />
               <p className="text-[10px] tracking-widest uppercase pt-1" style={{ color: "var(--muted-foreground)" }}>Starter</p>
               <TextConfigCard
                 label="Symbols (Starter)"

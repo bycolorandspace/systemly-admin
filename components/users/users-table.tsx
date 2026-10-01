@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/utils";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { UserDetailDrawer } from "./user-detail-drawer";
 import { referralSourceColor } from "@/lib/referral-sources";
+import { tierSourceTag, type TierSource } from "@/lib/tier-source";
 
 const TIER_COLORS: Record<string, string> = {
   free: "#71717a",
@@ -20,6 +21,8 @@ interface User {
   /** How they found Systemly. Null until onboarding is finished. */
   referralSource: string | null;
   tier: string;
+  /** Where the plan came from; null when nothing has been recorded. */
+  tierSource: TierSource | null;
   createdAt: string;
   /** Signals this account has generated, counted from `market_signal`. */
   lifetimeSignals: number;
@@ -184,6 +187,19 @@ export function UsersTable({ initialUsers, initialTotal }: {
                   >
                     {user.tier}
                   </span>
+                  {tierSourceTag({ current_tier: user.tier, tier_source: user.tierSource }) && (
+                    <span
+                      className="block text-[10px] mt-0.5"
+                      style={{
+                        color:
+                          user.tierSource === "stripe" || user.tierSource === "admin"
+                            ? "var(--muted-foreground)"
+                            : "var(--destructive)",
+                      }}
+                    >
+                      {tierSourceTag({ current_tier: user.tier, tier_source: user.tierSource })}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-3.5" style={{ color: "var(--muted-foreground)" }}>
                   {formatDate(user.createdAt)}

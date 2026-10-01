@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AcademyBrief } from "@/components/users/academy-brief";
+import { TierSourcePanel } from "@/components/users/tier-source-panel";
 import { X, ExternalLink } from "lucide-react";
 import { formatDate, formatGBP } from "@/lib/utils";
 
@@ -62,6 +63,14 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
       });
   }, [userId]);
 
+  // Re-read the record after a tier or trial change, so "Plan source" and its
+  // history show the grant just made (with this admin's name on it) rather
+  // than the state from when the drawer opened.
+  async function reloadDetail() {
+    const r = await fetch(`/api/admin/users/${userId}`);
+    if (r.ok) setData(await r.json());
+  }
+
   async function saveTier() {
     setTierSaving(true);
     setTierMsg(null);
@@ -71,6 +80,7 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
       body: JSON.stringify({ tier: overrideTier }),
     });
     setTierMsg(res.ok ? `Tier updated to ${overrideTier}` : "Failed to update tier");
+    if (res.ok) await reloadDetail();
     setTierSaving(false);
   }
 
@@ -124,6 +134,7 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
         profile: { ...prev.profile, trial_ends_at: current.toISOString(), trial_tier: trialTier },
       }));
       setTrialMsg(`${trialTier} trial now runs to ${formatDate(current.toISOString())}`);
+      await reloadDetail();
     } else {
       setTrialMsg("Failed to extend trial.");
     }
@@ -144,6 +155,7 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
         profile: { ...prev.profile, trial_ends_at: null, trial_tier: null },
       }));
       setTrialMsg("Trial revoked.");
+      await reloadDetail();
     } else {
       setTrialMsg("Failed to revoke trial.");
     }
@@ -213,6 +225,13 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                     </button>
                   </div>
                   {tierMsg && <p className="text-[11px] mt-1" style={{ color: "var(--muted-foreground)" }}>{tierMsg}</p>}
+                </div>
+                <div className="col-span-2">
+                  <TierSourcePanel
+                    profile={profile}
+                    history={data?.tierHistory ?? []}
+                    grantors={data?.grantors ?? {}}
+                  />
                 </div>
                 <div>
                   <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Joined</p>
@@ -296,6 +315,16 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                   <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
                     {profile?.trial_tier ?? (trialEndsAt ? "pro (legacy)" : "\u2014")}
                   </p>
+                  {trialEndsAt && profile?.trial_source && (
+                    <p className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>
+                      {profile.trial_source === "admin"
+                        ? `by ${
+                            (profile.trial_granted_by && data?.grantors?.[profile.trial_granted_by]) ??
+                            "an unrecorded admin"
+                          }`
+                        : profile.trial_source}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 mb-2">
