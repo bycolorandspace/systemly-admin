@@ -39,6 +39,8 @@ export const TOGGLE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "bounce_odds",
   // Chart-first signal page (main app: signal chart redesign, Phase 2, 2 October 2026).
   "signal_chart_view",
+  // Markets home and the chart scan flow (main app: signal chart redesign, Phase 5, 2 October 2026).
+  "markets_home",
   // User scans may say no trade (main app: signal chart redesign, Phase 3; strict, off by default).
   "user_scan_no_trade",
   // Rescan memory, threads and the hold-level alert (main app: signal chart redesign, Phase 4;

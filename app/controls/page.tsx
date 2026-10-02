@@ -329,6 +329,12 @@ export default async function ControlsPage() {
                 configKey="signal_chart_view"
               />
               <ToggleCard
+                label="Scan Page: Markets Home"
+                description="New Signal (and so the home page) becomes a page of markets: the market you were last on, the ones moving most, every market with its price. Picking one opens its chart, Generate runs the scan on that chart, and the result opens on the signal page. LIVE by default. Pausing it brings back the scan form exactly as it was (whichever the New Scan Flow switch picks). Testers can compare per browser with ?ff:marketsHome=off. Takes up to 60s to take effect."
+                paused={health.marketsHomePaused}
+                configKey="markets_home"
+              />
+              <ToggleCard
                 label="News Gate"
                 description="Automatic strategy and community scans skip a market when a major scheduled release (US jobs report, US inflation, or a rate decision by the Fed, ECB, BoE, BoJ, BoC, RBA, RBNZ or SNB) lands during the trade, and users' own scans carry a news-day warning instead. LIVE by default. Pausing it stops both: every market is scanned and no new warnings are written. The weekly calendar fetch keeps running either way. Takes up to 60s to take effect."
                 paused={health.newsGatePaused}

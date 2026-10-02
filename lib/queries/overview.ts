@@ -30,6 +30,7 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     bounceOddsConfig,
     newsGateConfig,
     signalChartViewConfig,
+    marketsHomeConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -119,6 +120,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "signal_chart_view")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "markets_home")
+        .maybeSingle(),
     ]);
 
   return {
@@ -203,6 +209,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     signalChartViewPaused:
       (signalChartViewConfig.data?.value as { paused?: boolean } | null)
         ?.paused ?? false,
+    // Defaults to LIVE, matching FEATURES.marketsHome in the main app: /signals/new (and so the
+    // home page) is the markets home, with the scan running on a market's chart.
+    marketsHomePaused:
+      (marketsHomeConfig.data?.value as { paused?: boolean } | null)?.paused ??
+      false,
   };
 }
 
