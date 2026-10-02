@@ -113,8 +113,9 @@ export default async function ControlsPage() {
   // match config/public-market-data.ts in the main app. The main app bounds
   // these when it reads them (helpers/public-market-limits.ts), whatever is
   // saved here: below 1 is ignored, per-caller limits are capped at 1000, each
-  // budget at 34, and the two budgets together at 35 of the 55-credit Twelve
-  // Data plan, so scans always keep 20. The card min and max are only hints.
+  // budget at 33, and the three budgets (price, market data, chart) together at
+  // 35 of the 55-credit Twelve Data plan, so scans always keep 20. The card min
+  // and max are only hints.
   const publicPricePerIp = Number(
     (configMap["public_price_per_ip_per_minute"] as number | undefined) ?? 120,
   );
@@ -132,6 +133,23 @@ export default async function ControlsPage() {
   );
   const publicMarketDataCredits = Number(
     (configMap["public_market_data_credits_per_minute"] as number | undefined) ?? 8,
+  );
+  // Chart routes and the price slowdown (main app, 2 October 2026). Fallbacks match
+  // config/public-market-data.ts; bounded on read by helpers/public-market-limits.ts.
+  const chartCandlesCredits = Number(
+    (configMap["chart_candles_credits_per_minute"] as number | undefined) ?? 7,
+  );
+  const chartCandlesPerIp = Number(
+    (configMap["chart_candles_per_ip_per_minute"] as number | undefined) ?? 30,
+  );
+  const chartCandlesPerUser = Number(
+    (configMap["chart_candles_per_user_per_minute"] as number | undefined) ?? 30,
+  );
+  const priceSlowAfterMarkets = Number(
+    (configMap["price_slow_after_markets"] as number | undefined) ?? 2,
+  );
+  const priceSlowCacheSeconds = Number(
+    (configMap["price_slow_cache_seconds"] as number | undefined) ?? 15,
   );
 
   // Exit placement. Fallbacks match MAX_AGE_HOURS_BY_STYLE and
@@ -433,31 +451,34 @@ export default async function ControlsPage() {
               className="text-xs mb-4"
               style={{ color: "var(--muted-foreground)" }}
             >
-              Limits on the two public price routes, /api/price (live trade
-              panels) and /api/market-data (candles for the mobile apps). Live
-              within a minute, no redeploy. The two budgets share the 55-credit
-              Twelve Data plan with scans: together they are held to 35 a
-              minute so scans always keep 20. If the two add up to more, the
-              price budget is kept and the market data budget is lowered to
-              fit. Values below 1 are ignored and the default applies.
+              Limits on the public price and chart routes: /api/price (live
+              trade panels), /api/market-data (candles for the mobile apps), and
+              since 2 October 2026 /api/chart-candles and /api/markets/snapshot
+              (the signal chart and the markets home). Live within a minute, no
+              redeploy. The three budgets share the 55-credit Twelve Data plan
+              with scans: together they are held to 35 a minute so scans always
+              keep 20. If they add up to more, the price budget is kept, then the
+              chart budget, and the market data budget is lowered to fit. Each
+              budget is at most 33. Values below 1 are ignored and the default
+              applies.
             </p>
             <div className="space-y-3">
               <NumberConfigCard
                 label="Price budget (all callers)"
-                description="Default: 20. Twelve Data credits /api/price may spend per minute across everyone. One market watched continuously costs at most 12. When spent, polls get a 503 and panels keep their last price. At most 34."
+                description="Default: 20. Twelve Data credits /api/price may spend per minute across everyone. One market watched continuously costs at most 12 at the 5-second window, 4 at the slow window. When spent, polls get a 503 and panels keep their last price. At most 33."
                 configKey="public_price_credits_per_minute"
                 initialValue={publicPriceCredits}
                 min={1}
-                max={34}
+                max={33}
                 unit="credits / min"
               />
               <NumberConfigCard
                 label="Market data budget (all callers)"
-                description="Default: 8. Twelve Data credits /api/market-data may spend per minute across everyone; one chart load costs 3 or 4. Nothing calls it yet. Lowered automatically if price plus this exceeds 35."
+                description="Default: 8. Twelve Data credits /api/market-data may spend per minute across everyone; one chart load costs 3 or 4. Nothing calls it yet. Lowered automatically if price plus chart plus this exceeds 35."
                 configKey="public_market_data_credits_per_minute"
                 initialValue={publicMarketDataCredits}
                 min={1}
-                max={34}
+                max={33}
                 unit="credits / min"
               />
               <NumberConfigCard
@@ -495,6 +516,51 @@ export default async function ControlsPage() {
                 min={1}
                 max={1000}
                 unit="/ min"
+              />
+              <NumberConfigCard
+                label="Chart budget (all callers)"
+                description="Default: 7, what is left of the 35 after price (20) and market data (8). Twelve Data credits the signal chart and the markets home may spend per minute across everyone. Charged only when the shared candle cache is stale; when spent, charts are served from the stale cache and marked stale. At most 33."
+                configKey="chart_candles_credits_per_minute"
+                initialValue={chartCandlesCredits}
+                min={1}
+                max={33}
+                unit="credits / min"
+              />
+              <NumberConfigCard
+                label="Chart requests per address"
+                description="Default: 30, a reader clicking through all seven charts of a few markets in a minute. Shared by /api/chart-candles and /api/markets/snapshot. At most 1000."
+                configKey="chart_candles_per_ip_per_minute"
+                initialValue={chartCandlesPerIp}
+                min={1}
+                max={1000}
+                unit="/ min"
+              />
+              <NumberConfigCard
+                label="Chart requests per account"
+                description="Default: 30. Callers with a Bearer token. Their address ceiling is ten times this. At most 1000."
+                configKey="chart_candles_per_user_per_minute"
+                initialValue={chartCandlesPerUser}
+                min={1}
+                max={1000}
+                unit="/ min"
+              />
+              <NumberConfigCard
+                label="Price slowdown from (markets)"
+                description="Default: 2. Once this many different markets are priced in the same minute, /api/price keeps each quote for the slow window below instead of 5 seconds. At 5 seconds two live markets already cost 24 credits a minute, past the price budget. Panels still poll every 10 seconds. At most 50."
+                configKey="price_slow_after_markets"
+                initialValue={priceSlowAfterMarkets}
+                min={1}
+                max={50}
+                unit="markets"
+              />
+              <NumberConfigCard
+                label="Price slow window"
+                description="Default: 15. How long one quote is reused while the slowdown applies. At 15 seconds each live market costs 4 credits a minute, so five fit. Never below 5 (the normal window) or above 60."
+                configKey="price_slow_cache_seconds"
+                initialValue={priceSlowCacheSeconds}
+                min={5}
+                max={60}
+                unit="seconds"
               />
             </div>
           </section>

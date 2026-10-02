@@ -61,6 +61,12 @@ export const VALUE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "public_price_per_user_per_minute",
   "public_market_data_per_ip_per_minute",
   "public_market_data_per_user_per_minute",
+  // Chart routes and the price slowdown (main app: signal chart redesign, Phase 1, 2 October 2026).
+  "chart_candles_credits_per_minute",
+  "chart_candles_per_ip_per_minute",
+  "chart_candles_per_user_per_minute",
+  "price_slow_after_markets",
+  "price_slow_cache_seconds",
   "signal_max_age_hours_day",
   "signal_max_age_hours_swing",
   "signal_max_age_hours_scalp",
