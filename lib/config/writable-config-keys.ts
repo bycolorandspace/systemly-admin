@@ -39,6 +39,8 @@ export const TOGGLE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "bounce_odds",
   // Chart-first signal page (main app: signal chart redesign, Phase 2, 2 October 2026).
   "signal_chart_view",
+  // User scans may say no trade (main app: signal chart redesign, Phase 3; strict, off by default).
+  "user_scan_no_trade",
   "news_gate",
   "community_feed",
   "telegram_community_signals",
@@ -69,6 +71,9 @@ export const VALUE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "chart_candles_per_user_per_minute",
   "price_slow_after_markets",
   "price_slow_cache_seconds",
+  // Reopen window and free verdicts a day (main app: signal chart redesign, Phase 3).
+  "rescan_reopen_window_minutes",
+  "free_verdicts_per_day",
   "signal_max_age_hours_day",
   "signal_max_age_hours_swing",
   "signal_max_age_hours_scalp",

@@ -40,6 +40,20 @@ export default async function ControlsPage() {
   const tradeExecutionPaused = !(
     (configMap["trade_execution"] as { paused?: unknown } | undefined)?.paused === false
   );
+  // User scans may say no trade (main app, signal chart redesign Phase 3). Mirrors
+  // getUserScanVerdictConfig(), which is strict: on only for { paused: false }. Anything else,
+  // including no row, shows PAUSED, so the card can never claim LIVE while scans keep their trade.
+  const userScanNoTradePaused = !(
+    (configMap["user_scan_no_trade"] as { paused?: unknown } | undefined)?.paused === false
+  );
+  // Fallbacks match RESCAN_REOPEN_WINDOW_MINUTES_DEFAULT and FREE_VERDICTS_PER_DAY_DEFAULT in the
+  // main app's config/user-scan-verdicts.ts.
+  const rescanReopenWindowMinutes = Number(
+    (configMap["rescan_reopen_window_minutes"] as number | undefined) ?? 15,
+  );
+  const freeVerdictsPerDay = Number(
+    (configMap["free_verdicts_per_day"] as number | undefined) ?? 3,
+  );
   const whatsappRequireVerifiedPaused =
     (configMap["whatsapp_require_verified_phone"] as { paused?: boolean } | undefined)?.paused ?? true;
   const shareExpiryHours = Number(
@@ -423,6 +437,30 @@ export default async function ControlsPage() {
                 min={-1}
                 max={10000}
                 unit="/ month"
+              />
+              <ToggleCard
+                label="User scans: no trade"
+                description="Whether a user's own scan may answer 'no trade' when the strategy's structural checks fail (not enough confluence, not at a key level, against the bigger trend). Never on the reward-to-risk floor alone. PAUSED by default until the quant lead confirms the list of checks. While paused, every user scan returns a trade, as before. When live, a no-trade answer does not use a signal, up to the free results a day below; the turned-down plan is kept where only admins can read it. Strategy scans follow the same rule. Takes effect on the next scan."
+                paused={userScanNoTradePaused}
+                configKey="user_scan_no_trade"
+              />
+              <NumberConfigCard
+                label="Free results / day"
+                description="Default: 3. No-trade answers per account per UTC day that do not use a signal. Past it, a no-trade answer uses one like a trade. 0 makes every no-trade answer use a signal. The onboarding first scan and its one free second scan sit outside this cap. At most 20."
+                configKey="free_verdicts_per_day"
+                initialValue={freeVerdictsPerDay}
+                min={0}
+                max={20}
+                unit="/ day"
+              />
+              <NumberConfigCard
+                label="Rescan reopen window"
+                description="Default: 15. A rescan of the same market and style within this many minutes of the user's last answer, while it is still open and with no major release since, reopens that answer: no AI call, nothing used. 'Scan again anyway' still runs and uses a signal whatever it finds. 0 turns reopening off. At most 120."
+                configKey="rescan_reopen_window_minutes"
+                initialValue={rescanReopenWindowMinutes}
+                min={0}
+                max={120}
+                unit="minutes"
               />
               <NumberConfigCard
                 label="Fair use ceiling / day"
