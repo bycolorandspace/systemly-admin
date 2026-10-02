@@ -302,6 +302,12 @@ export default async function ControlsPage() {
                 configKey="bounce_odds"
               />
               <ToggleCard
+                label="Signal Page: Chart First"
+                description="The signal page opens on its price chart with the trade drawn on it and the numbered moves beside it (what to do now, with a countdown when the moment is known), and today's rebuilt page below as the full analysis. LIVE by default. Pausing it brings back the rebuilt page exactly as it was. Charts from 4H up stay locked below Plus in the chart route either way. Testers can compare per browser with ?ff:signalChartView=off. Takes up to 60s to take effect."
+                paused={health.signalChartViewPaused}
+                configKey="signal_chart_view"
+              />
+              <ToggleCard
                 label="News Gate"
                 description="Automatic strategy and community scans skip a market when a major scheduled release (US jobs report, US inflation, or a rate decision by the Fed, ECB, BoE, BoJ, BoC, RBA, RBNZ or SNB) lands during the trade, and users' own scans carry a news-day warning instead. LIVE by default. Pausing it stops both: every market is scanned and no new warnings are written. The weekly calendar fetch keeps running either way. Takes up to 60s to take effect."
                 paused={health.newsGatePaused}

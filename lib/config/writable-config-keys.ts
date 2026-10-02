@@ -37,6 +37,8 @@ export const TOGGLE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "academy_in_header",
   "risk_doctor_execute",
   "bounce_odds",
+  // Chart-first signal page (main app: signal chart redesign, Phase 2, 2 October 2026).
+  "signal_chart_view",
   "news_gate",
   "community_feed",
   "telegram_community_signals",

@@ -29,6 +29,7 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     riskDoctorExecuteConfig,
     bounceOddsConfig,
     newsGateConfig,
+    signalChartViewConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -113,6 +114,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "news_gate")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "signal_chart_view")
+        .maybeSingle(),
     ]);
 
   return {
@@ -192,6 +198,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     newsGatePaused:
       (newsGateConfig.data?.value as { paused?: boolean } | null)?.paused ??
       false,
+    // Defaults to LIVE, matching FEATURES.signalChartView in the main app: the
+    // signal page opens on its chart with the numbered moves beside it.
+    signalChartViewPaused:
+      (signalChartViewConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
   };
 }
 
