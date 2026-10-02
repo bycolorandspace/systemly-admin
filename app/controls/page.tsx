@@ -32,6 +32,14 @@ export default async function ControlsPage() {
     (configMap["stripe_reconcile_enforce"] as { paused?: boolean } | undefined)?.paused ?? true;
   // Off (paused) by default, matching WHATSAPP_REQUIRE_VERIFIED_PHONE_DEFAULT
   // in the main app's config/whatsapp.ts: no row means any number on file.
+  // Trade execution kill switch. Mirrors getExecutionEnabled() in the main
+  // app's lib/system-config.ts, which is fail-closed: execution is on only when
+  // the value is an object with paused === false. Anything else, including no
+  // row, shows here as PAUSED, so this card can never claim LIVE while the app
+  // is refusing orders.
+  const tradeExecutionPaused = !(
+    (configMap["trade_execution"] as { paused?: unknown } | undefined)?.paused === false
+  );
   const whatsappRequireVerifiedPaused =
     (configMap["whatsapp_require_verified_phone"] as { paused?: boolean } | undefined)?.paused ?? true;
   const shareExpiryHours = Number(
@@ -197,6 +205,12 @@ export default async function ControlsPage() {
               System Controls
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ToggleCard
+                label="Trade execution"
+                description="Whether the app can place trades on users' MetaTrader accounts, connect a new broker account, or start a MetaApi terminal. PAUSED by default. While paused, every execution route answers 503, auto-execution skips, the MT5 history sync skips, and every Execute button, broker form and pricing line about execution is hidden. Removing a broker link always works. When live, only Pro accounts can execute. Takes effect on the next request for orders; screens follow within 60s. Every change is recorded with your user id."
+                paused={tradeExecutionPaused}
+                configKey="trade_execution"
+              />
               <ToggleCard
                 label="Signal Sharing"
                 description="Pausing blocks all shared signal link access (returns 503 to viewers)"

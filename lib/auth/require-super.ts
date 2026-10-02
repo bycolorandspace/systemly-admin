@@ -26,12 +26,30 @@ import { createAdminClient, createRouteClient } from "@/lib/supabase";
  * response to send back.
  */
 export async function requireSuperUser(req: NextRequest): Promise<NextResponse | null> {
+  const result = await requireSuperUserId(req);
+  return "response" in result ? result.response : null;
+}
+
+/**
+ * The same check, returning the signed-in super user's id on success.
+ *
+ * Added 2 October 2026 for the config writers (`app/api/admin/toggle-config`,
+ * `app/api/admin/set-config`), which used to record every change as the string
+ * "admin-dashboard". Now each change names the admin who made it, in the row and
+ * in `security_events`, which matters most for `trade_execution`: the switch
+ * that lets the main app place real orders.
+ */
+export async function requireSuperUserId(
+  req: NextRequest,
+): Promise<{ userId: string } | { response: NextResponse }> {
   const {
     data: { user },
   } = await createRouteClient(req).auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Sign in to the admin dashboard first." }, { status: 401 });
+    return {
+      response: NextResponse.json({ error: "Sign in to the admin dashboard first." }, { status: 401 }),
+    };
   }
 
   const { data: profile, error } = await createAdminClient()
@@ -42,12 +60,16 @@ export async function requireSuperUser(req: NextRequest): Promise<NextResponse |
 
   if (error) {
     console.error("[require-super] profile lookup failed", error.message);
-    return NextResponse.json({ error: "Could not confirm admin access." }, { status: 500 });
+    return {
+      response: NextResponse.json({ error: "Could not confirm admin access." }, { status: 500 }),
+    };
   }
 
   if (!profile?.is_super) {
-    return NextResponse.json({ error: "This account does not have admin access." }, { status: 403 });
+    return {
+      response: NextResponse.json({ error: "This account does not have admin access." }, { status: 403 }),
+    };
   }
 
-  return null;
+  return { userId: user.id };
 }
