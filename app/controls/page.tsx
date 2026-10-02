@@ -335,6 +335,12 @@ export default async function ControlsPage() {
                 configKey="markets_home"
               />
               <ToggleCard
+                label="Onboarding: First Signal Preview"
+                description="A new account below Plus gets its first signal in the finished signal layout as a Plus preview: the chart layer switches, the charts from 4H up, the TradingView export and a Plus-only market, on that one signal for its life (and on the free rescan after a no-trade first scan). The server enforces it: the scan route records the preview on that signal only, and the chart route honours it for that signal only. LIVE by default. Pausing it brings back today's first signal and the server lends nothing: a Plus-only market is refused on the first scan as before, and signals that already carry the preview stop opening the slower charts. Testers can compare per browser with ?ff:firstSignalChartView=off (the screen only; the server follows this switch). Takes up to 60s to take effect."
+                paused={health.firstSignalChartViewPaused}
+                configKey="first_signal_chart_view"
+              />
+              <ToggleCard
                 label="News Gate"
                 description="Automatic strategy and community scans skip a market when a major scheduled release (US jobs report, US inflation, or a rate decision by the Fed, ECB, BoE, BoJ, BoC, RBA, RBNZ or SNB) lands during the trade, and users' own scans carry a news-day warning instead. LIVE by default. Pausing it stops both: every market is scanned and no new warnings are written. The weekly calendar fetch keeps running either way. Takes up to 60s to take effect."
                 paused={health.newsGatePaused}

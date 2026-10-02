@@ -31,6 +31,7 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     newsGateConfig,
     signalChartViewConfig,
     marketsHomeConfig,
+    firstSignalChartViewConfig,
   ] = await Promise.all([
       supabase
         .from("mt5_connections")
@@ -125,6 +126,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
         .select("value")
         .eq("key", "markets_home")
         .maybeSingle(),
+      supabase
+        .from("system_config")
+        .select("value")
+        .eq("key", "first_signal_chart_view")
+        .maybeSingle(),
     ]);
 
   return {
@@ -214,6 +220,11 @@ export async function getSystemHealth(supabase: SupabaseClient) {
     marketsHomePaused:
       (marketsHomeConfig.data?.value as { paused?: boolean } | null)?.paused ??
       false,
+    // Defaults to LIVE, matching FEATURES.firstSignalChartView in the main app: the onboarding
+    // first signal is a Plus preview, honoured by the scan and chart routes for that signal only.
+    firstSignalChartViewPaused:
+      (firstSignalChartViewConfig.data?.value as { paused?: boolean } | null)
+        ?.paused ?? false,
   };
 }
 
