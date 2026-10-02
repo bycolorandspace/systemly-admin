@@ -41,6 +41,11 @@ export const TOGGLE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "signal_chart_view",
   // User scans may say no trade (main app: signal chart redesign, Phase 3; strict, off by default).
   "user_scan_no_trade",
+  // Rescan memory, threads and the hold-level alert (main app: signal chart redesign, Phase 4;
+  // strict, seeded on).
+  "signal_threads",
+  "rescan_checkin",
+  "hold_level_alerts",
   "news_gate",
   "community_feed",
   "telegram_community_signals",

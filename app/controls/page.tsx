@@ -46,6 +46,13 @@ export default async function ControlsPage() {
   const userScanNoTradePaused = !(
     (configMap["user_scan_no_trade"] as { paused?: unknown } | undefined)?.paused === false
   );
+  // Phase 4 switches (main app, signal chart redesign). getRescanMemorySwitches() is strict: on only
+  // for { paused: false }, so no row reads PAUSED here too.
+  const strictPaused = (key: string) =>
+    !((configMap[key] as { paused?: unknown } | undefined)?.paused === false);
+  const signalThreadsPaused = strictPaused("signal_threads");
+  const rescanCheckinPaused = strictPaused("rescan_checkin");
+  const holdLevelAlertsPaused = strictPaused("hold_level_alerts");
   // Fallbacks match RESCAN_REOPEN_WINDOW_MINUTES_DEFAULT and FREE_VERDICTS_PER_DAY_DEFAULT in the
   // main app's config/user-scan-verdicts.ts.
   const rescanReopenWindowMinutes = Number(
@@ -452,6 +459,24 @@ export default async function ControlsPage() {
                 min={0}
                 max={20}
                 unit="/ day"
+              />
+              <ToggleCard
+                label="Rescans of a held market: check-in"
+                description="When a user rescans a market where their trade is still open, the scan reads that trade and answers keep, tighten stop, exit or reversed. A reversal is only allowed once price is a quarter of the way to the old stop loss; below that the server keeps the trade and stores the refused plan where only admins can read it. Keep, tighten and exit give the signal back, within the free results a day above. Paused: rescans run without the open trade, as before. Takes effect on the next scan."
+                paused={rescanCheckinPaused}
+                configKey="rescan_checkin"
+              />
+              <ToggleCard
+                label="Signals list: one row per trade"
+                description="The Signals list groups each trade with its rescans in one row, with the scans inside it. Paused: one row per signal, as before. Rescans that only checked an open trade are left out of the flat list either way. Display only; up to a minute to reach browsers."
+                paused={signalThreadsPaused}
+                configKey="signal_threads"
+              />
+              <ToggleCard
+                label="Hold-level alerts (Plus and Pro watches)"
+                description="The 15-minute outcome run also alerts a Plus or Pro user watching a trade when a 1-hour candle closes through its hold level before TP1, with the tighten advice. One alert per trade. Paused: watch alerts as before. No new job and no extra price calls."
+                paused={holdLevelAlertsPaused}
+                configKey="hold_level_alerts"
               />
               <NumberConfigCard
                 label="Rescan reopen window"
