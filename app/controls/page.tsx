@@ -61,6 +61,10 @@ export default async function ControlsPage() {
   const freeVerdictsPerDay = Number(
     (configMap["free_verdicts_per_day"] as number | undefined) ?? 3,
   );
+  // Release pack R.14. Mirrors parseTrendCheckStage() in the main app's
+  // helpers/scan-trend-check.ts: only off, record or decide count, anything else is record.
+  const rawTrendCheck = String((configMap["user_scan_trend_check"] as string | undefined) ?? "").trim().toLowerCase();
+  const userScanTrendCheck = ["off", "record", "decide"].includes(rawTrendCheck) ? rawTrendCheck : "record";
   const whatsappRequireVerifiedPaused =
     (configMap["whatsapp_require_verified_phone"] as { paused?: boolean } | undefined)?.paused ?? true;
   const shareExpiryHours = Number(
@@ -459,9 +463,16 @@ export default async function ControlsPage() {
               />
               <ToggleCard
                 label="User scans: no trade"
-                description="Whether a user's own scan may answer 'no trade' when the strategy's structural checks fail (not enough confluence, not at a key level, against the bigger trend). Never on the reward-to-risk floor alone. PAUSED by default until the quant lead confirms the list of checks. While paused, every user scan returns a trade, as before. When live, a no-trade answer does not use a signal, up to the free results a day below; the turned-down plan is kept where only admins can read it. Strategy scans follow the same rule. Takes effect on the next scan."
+                description="Whether a user's own scan may answer 'no trade' when one of two strategy checks fails: not enough confluence, or against the bigger trend (decided 2 October, round 5). 'Not at a key level' is recorded only and never decides. Never on the reward-to-risk floor alone. Set LIVE on release day. While paused, every user scan returns a trade, as before. When live, a no-trade answer does not use a signal, up to the free results a day below; the turned-down plan is kept where only admins can read it. Strategy scans follow the same rule. Takes effect on the next scan."
                 paused={userScanNoTradePaused}
                 configKey="user_scan_no_trade"
+              />
+              <TextConfigCard
+                label="User scans: server trend check"
+                description="One of off, record or decide. Default: record. The server counts how many of the scan's three timeframes have price on the trade's side of the 20 and 50 EMAs, from candles the scan already fetched (no extra call), on System default, Day Starter and Swing Starter, and on a user's own strategy only when it asks for trend alignment. record: stored on the signal, nothing a user sees changes. decide: fewer than 2 of 3 agreeing counts as the trend check failing, in place of the AI's own flag, and with the no-trade switch above live it turns about half of Day scans into no trade. Do not set decide until the quant lead has confirmed the rule on 100 or more recorded user scans. off: not computed. Anything else typed here reads as record. Takes effect on the next scan."
+                configKey="user_scan_trend_check"
+                initialValue={userScanTrendCheck}
+                placeholder="record"
               />
               <NumberConfigCard
                 label="Free results / day"

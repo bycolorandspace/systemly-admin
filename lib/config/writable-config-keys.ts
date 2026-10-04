@@ -84,6 +84,9 @@ export const VALUE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   // Reopen window and free verdicts a day (main app: signal chart redesign, Phase 3).
   "rescan_reopen_window_minutes",
   "free_verdicts_per_day",
+  // Server trend check stage, off / record / decide (main app: release pack R.14). The main app
+  // reads any other value as "record", so a typo can never switch deciding on.
+  "user_scan_trend_check",
   "signal_max_age_hours_day",
   "signal_max_age_hours_swing",
   "signal_max_age_hours_scalp",
