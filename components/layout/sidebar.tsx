@@ -18,6 +18,7 @@ import {
   GitBranch,
   Gift,
   Send,
+  MessageSquareText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createBrowserClient } from "@/lib/supabase";
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/newsletter", label: "Newsletter", icon: Mail },
   { href: "/email", label: "Email", icon: MailCheck },
   { href: "/outreach", label: "Outreach", icon: Send },
+  { href: "/feedback", label: "Feedback", icon: MessageSquareText },
   { href: "/trials", label: "Trial links", icon: Gift },
   { href: "/costs", label: "Costs", icon: Receipt },
   { href: "/controls", label: "Controls", icon: Settings2 },
