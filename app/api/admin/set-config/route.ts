@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperUserId } from "@/lib/auth/require-super";
-import { isWritableValueKey } from "@/lib/config/writable-config-keys";
+import { isWritableValueKey, valueProblem } from "@/lib/config/writable-config-keys";
 import { writeConfigAsAdmin } from "@/lib/config/write-config";
 
 /**
@@ -10,7 +10,8 @@ import { writeConfigAsAdmin } from "@/lib/config/write-config";
  * (unknown key is a 400; a toggle key such as `trade_execution` is refused here, so a switch can
  * only be written in its own shape by `toggle-config`), the value must be a number or a string,
  * the admin's user id is recorded in `updated_by`, and every change writes a `security_events`
- * row (`config_changed`).
+ * row (`config_changed`). Keys with a fixed shape are checked by `valueProblem()` (5 October
+ * 2026: `trial_tiers`).
  */
 export async function POST(req: NextRequest) {
   const auth = await requireSuperUserId(req);
@@ -34,6 +35,10 @@ export async function POST(req: NextRequest) {
   const isText = typeof value === "string" && value.length <= 2000;
   if (!isNumber && !isText) {
     return NextResponse.json({ error: "Value must be a number or text" }, { status: 400 });
+  }
+  const problem = valueProblem(key, value);
+  if (problem) {
+    return NextResponse.json({ error: problem }, { status: 400 });
   }
 
   const result = await writeConfigAsAdmin({ key, value, adminId: auth.userId, req });

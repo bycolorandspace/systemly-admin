@@ -55,13 +55,27 @@ export const TOGGLE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "community_feed",
   "telegram_community_signals",
   "stripe_reconcile_enforce",
+  // Prepaid cards charged at checkout instead of trialing (main app:
+  // getPrepaidTrialChargeEnabled(), strict, off by default). Decision log round 19, decision 2.
+  "trial_prepaid_card_charge",
   "cancel_save_offer",
   "signal_stop_liquidity_veto",
   "whatsapp_require_verified_phone",
+  // Weekend quotes removed from the candles the scan prompt reads (main app:
+  // FEATURES.priceActionCalendarFilter). Decision log round 16, item 16.
+  "price_action_calendar_filter",
+  // Onboarding config (main app: onboarding paywall video and first signal, 15 October 2026).
+  // `paused: false` means on; all three are seeded on.
+  "onboarding_video_enabled",
+  "onboarding_free_exit_visible",
+  "onboarding_stop_out_followup_enabled",
 ]);
 
 export const VALUE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "default_trial_days",
+  // Which paid plans get the checkout trial (main app: getTrialTiers(), decision log round 19,
+  // decision 2). Value checked by valueProblem() below.
+  "trial_tiers",
   "share_expiry_hours",
   "signals_per_month_free",
   "signals_per_month_starter",
@@ -110,6 +124,11 @@ export const VALUE_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "signal_alert_basis",
   "signal_alert_min_plan_quality",
   "signal_alert_min_confidence",
+  // Onboarding config (15 October 2026). The two URLs are checked by valueProblem() below.
+  "onboarding_video_url",
+  "onboarding_video_poster_url",
+  "onboarding_first_market_default",
+  "onboarding_first_market_excluded",
 ]);
 
 /**
@@ -130,4 +149,49 @@ export function isWritableValueKey(key: unknown): key is string {
     !TOGGLE_CONFIG_KEYS.has(key) &&
     (VALUE_CONFIG_KEYS.has(key) || MANUAL_USAGE_KEY.test(key))
   );
+}
+
+/** A market symbol id as the main app writes it: capitals and digits, e.g. XAUUSD, SPY. */
+const SYMBOL_ID = /^[A-Z0-9]{2,12}$/;
+
+/** The plans `trial_tiers` may name, matching the paid tiers in the main app's lib/stripe/trial-rules.ts. */
+const TRIAL_TIER_NAMES = new Set(["starter", "plus", "pro"]);
+
+/**
+ * Why a value cannot be written to this key, or null when it can. Per-key checks for the keys
+ * whose shape the main app depends on; every other value key accepts any number or text, as
+ * before.
+ *
+ * `trial_tiers` (5 October 2026): a comma-separated list of starter, plus and pro, at least
+ * one. The main app ignores unknown names and falls back to starter,plus on an empty list
+ * (parseTrialTiers()), so a typo would silently put a plan back on the default; refusing it here
+ * means the operator finds out at once.
+ */
+export function valueProblem(key: string, value: unknown): string | null {
+  if (key === "trial_tiers") {
+    if (typeof value !== "string") return "Trial plans must be text, e.g. starter,plus";
+    const parts = value.split(",").map((s) => s.trim().toLowerCase());
+    if (parts.length === 0 || parts.some((p) => !TRIAL_TIER_NAMES.has(p))) {
+      return "Trial plans must be a comma-separated list of starter, plus and pro";
+    }
+  }
+  if (key === "onboarding_video_url" || key === "onboarding_video_poster_url") {
+    if (typeof value !== "string") return "The URL must be text";
+    // A site-relative path ("/video/x.mp4", not "//host/x.mp4") or an https URL. Nothing else.
+    const ok = /^\/(?!\/)\S*$/.test(value) || /^https:\/\/\S+$/.test(value);
+    if (!ok) return "The URL must start with / (a path in the app) or https://";
+  }
+  if (key === "onboarding_first_market_default") {
+    if (typeof value !== "string" || !SYMBOL_ID.test(value.trim())) {
+      return "Use one symbol id in capitals, e.g. XAUUSD";
+    }
+  }
+  if (key === "onboarding_first_market_excluded") {
+    if (typeof value !== "string") return "Use comma-separated symbol ids, e.g. SPY,QQQ";
+    const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.some((p) => !SYMBOL_ID.test(p))) {
+      return "Use comma-separated symbol ids in capitals, e.g. SPY,QQQ";
+    }
+  }
+  return null;
 }

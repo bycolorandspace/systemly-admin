@@ -20,18 +20,35 @@ export function TextConfigCard({
   const [value, setValue] = useState(initialValue);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  /**
+   * Why the last save was refused, as the server said it. "Saved" used to show
+   * whatever the server answered, so an operator who mistyped a value the
+   * server rejects (a `trial_tiers` rollback, say) was told it had worked.
+   */
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
     setSaving(true);
     setSaved(false);
-    await fetch("/api/admin/set-config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: configKey, value }),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/set-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: configKey, value }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        setError(typeof body?.error === "string" ? body.error : `HTTP ${res.status}`);
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -63,6 +80,11 @@ export function TextConfigCard({
           </button>
         </div>
       </div>
+      {error && (
+        <p role="alert" className="text-xs mt-2" style={{ color: "var(--destructive)" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { ToggleCard } from "@/components/controls/toggle-card";
 import { NumberConfigCard } from "@/components/controls/number-config-card";
 import { TextConfigCard } from "@/components/controls/text-config-card";
 import { CronTriggerList } from "@/components/controls/cron-trigger-card";
+import { OnboardingSection } from "@/components/controls/onboarding-section";
 import { Header } from "@/components/layout/header";
 
 export const revalidate = 30;
@@ -23,6 +24,9 @@ export default async function ControlsPage() {
   const defaultTrialDays = Number(
     (configMap["default_trial_days"] as number | undefined) ?? 7,
   );
+  // No row means starter,plus, matching TRIAL_TIERS_FALLBACK in the main app's
+  // lib/stripe/trial-rules.ts (read by getTrialTiers()).
+  const trialTiers = String((configMap["trial_tiers"] as string | undefined) ?? "starter,plus");
   // Default on, matching CANCEL_SAVE_OFFER_DEFAULT in the main app.
   const cancelSaveOfferPaused =
     (configMap["cancel_save_offer"] as { paused?: boolean } | undefined)?.paused ?? false;
@@ -30,6 +34,12 @@ export default async function ControlsPage() {
   // app's lib/system-config.ts: no row means report only.
   const stripeReconcileEnforcePaused =
     (configMap["stripe_reconcile_enforce"] as { paused?: boolean } | undefined)?.paused ?? true;
+  // Strict, like the execution switch: mirrors getPrepaidTrialChargeEnabled() in
+  // the main app, which is on only for { paused: false }. Anything else, no row
+  // included, shows PAUSED, so the card never claims LIVE while the app is off.
+  const prepaidTrialChargePaused = !(
+    (configMap["trial_prepaid_card_charge"] as { paused?: unknown } | undefined)?.paused === false
+  );
   // Off (paused) by default, matching WHATSAPP_REQUIRE_VERIFIED_PHONE_DEFAULT
   // in the main app's config/whatsapp.ts: no row means any number on file.
   // Trade execution kill switch. Mirrors getExecutionEnabled() in the main
@@ -202,6 +212,12 @@ export default async function ControlsPage() {
   );
   const stopVetoPaused =
     (configMap["signal_stop_liquidity_veto"] as { paused?: boolean } | undefined)
+      ?.paused === true;
+  // Defaults to LIVE, matching FEATURES.priceActionCalendarFilter in the main app from the
+  // signal chart redesign release (decision log round 16, items 9 and 16). An absent row
+  // means "use the build default", so this card must not ship ahead of that release.
+  const calendarFilterPaused =
+    (configMap["price_action_calendar_filter"] as { paused?: boolean } | undefined)
       ?.paused === true;
 
   // Signal engine (fallbacks match config/ai-models.ts and
@@ -383,11 +399,24 @@ export default async function ControlsPage() {
                 max={365}
                 unit="days"
               />
+              <TextConfigCard
+                label="Trial plans"
+                description="Which paid plans get the free trial at checkout, comma-separated: starter, plus, pro. Default starter,plus: Pro is charged on the day and its card points to the Plus trial. Adding pro is the rollback and needs no deploy. Also decides which plan moves end a running trial."
+                configKey="trial_tiers"
+                initialValue={trialTiers}
+                placeholder="starter,plus"
+              />
               <ToggleCard
                 label="Billing Reconcile: Correct Plans"
                 description="Every morning the feed health email compares every Stripe subscription with the plan on the account, using the same rule as the webhooks. PAUSED (the default) only reports what it finds. LIVE also corrects each account that does not match Stripe, up to 25 a day; an admin grant is never lowered. Switch it on after a week of reports you agree with."
                 paused={stripeReconcileEnforcePaused}
                 configKey="stripe_reconcile_enforce"
+              />
+              <ToggleCard
+                label="Trials: Charge Prepaid Cards at Checkout"
+                description="A trial started on a card Stripe reports as prepaid is ended at once, so the first charge is taken at checkout. A prepaid card that pays keeps the plan; one that cannot pay gets the free plan. Debit, credit and unknown cards keep the trial, and no card is refused. PAUSED (the default) changes nothing. Switch on only once the checkout line that tells people about it is live (release checklist R.23). Takes effect on the next Stripe webhook, no deploy."
+                paused={prepaidTrialChargePaused}
+                configKey="trial_prepaid_card_charge"
               />
               <ToggleCard
                 label="Cancel Flow: Free Month of Plus"
@@ -739,6 +768,12 @@ export default async function ControlsPage() {
                 paused={stopVetoPaused}
                 configKey="signal_stop_liquidity_veto"
               />
+              <ToggleCard
+                label="Scan prompt: closed-market bars removed"
+                description="Forex and metals scans read their candles with the weekend removed, so a scan made while the market is shut is priced on Friday's close, and weekday ATR, stops and position size are not diluted by weekend quotes. LIVE by default from the signal chart redesign release. Pausing it puts the weekend quotes back into the prompt (the price-action engine filters its own bars either way) and makes the weekend scan notices untrue. Takes up to 60s to take effect."
+                paused={calendarFilterPaused}
+                configKey="price_action_calendar_filter"
+              />
             </div>
           </section>
 
@@ -933,6 +968,8 @@ export default async function ControlsPage() {
               />
             </div>
           </section>
+
+          <OnboardingSection configMap={configMap} mainAppUrl={process.env.MAIN_APP_URL ?? ""} />
 
           {/* Cron triggers — invoke main app jobs on demand */}
           <section>
