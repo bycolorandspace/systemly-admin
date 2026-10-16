@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AcademyBrief } from "@/components/users/academy-brief";
 import { TierSourcePanel } from "@/components/users/tier-source-panel";
+import { SignalGrantPanel } from "@/components/users/signal-grant-panel";
 import { X, ExternalLink } from "lucide-react";
 import { formatDate, formatGBP } from "@/lib/utils";
 
@@ -422,6 +423,16 @@ export function UserDetailDrawer({ userId, userName, onClose }: UserDetailDrawer
                   </div>
                 );
               })}
+            </div>
+
+            {/* Bonus signals: admin gifts for this month, and their emails. */}
+            <div className="px-6 py-4">
+              <SignalGrantPanel
+                userId={userId}
+                grants={data?.adminGrants ?? []}
+                unlimited={limits.signals === 999}
+                onChanged={reloadDetail}
+              />
             </div>
 
             {/* Academy: the brief version. Full report lives at /academy. */}

@@ -26,22 +26,41 @@ export async function GET(
       .from("system_config")
       .select("key, value")
       .like("key", "signals_per_month_%"),
-    // Extra signals earned this month (the Academy completion reward). Mirrors
-    // getSignalBonus in the main app's lib/rewards/signal-bonus.ts.
+    // Extra signals earned or given this month (rewards and admin gifts).
+    // Mirrors getSignalBonus in the main app's lib/rewards/signal-bonus.ts.
     supabase
       .from("reward_grants")
-      .select("payload, expires_at, reward_campaigns!inner(reward)")
+      .select("id, granted_at, payload, expires_at, reward_campaigns!inner(slug, reward)")
       .eq("user_id", userId)
-      .gte("granted_at", periodStart.toISOString()),
+      .gte("granted_at", periodStart.toISOString())
+      .order("granted_at", { ascending: false }),
   ]);
   let signalBonus = 0;
+  // This month's admin gifts, for the drawer's "Bonus signals" list.
+  const adminGrants: { id: string; amount: number; granted_at: string; emailed: boolean }[] = [];
   for (const row of (grants.data ?? []) as Record<string, any>[]) {
     if (row.expires_at && new Date(row.expires_at).getTime() <= now.getTime()) continue;
     const campaign = Array.isArray(row.reward_campaigns) ? row.reward_campaigns[0] : row.reward_campaigns;
     const reward = campaign?.reward ?? row.payload?.reward;
-    if (reward?.type === "extra_signals" && typeof reward.amount === "number" && reward.amount > 0) {
-      signalBonus += reward.amount;
+    if (reward?.type !== "extra_signals") continue;
+    // A campaign with no amount (the admin gift) keeps it on the grant.
+    const amount = typeof reward.amount === "number" ? reward.amount : row.payload?.reward?.amount;
+    if (typeof amount !== "number" || amount <= 0) continue;
+    signalBonus += amount;
+    if (campaign?.slug === "admin-signal-gift") {
+      adminGrants.push({ id: row.id, amount, granted_at: row.granted_at, emailed: false });
     }
+  }
+  // Which gifts have had their email. The main app logs each send under
+  // `signals-added-<grant id>` (lib/email/send-signals-added.ts).
+  if (adminGrants.length > 0) {
+    const { data: sent } = await supabase
+      .from("email_broadcast_log")
+      .select("campaign")
+      .eq("user_id", userId)
+      .in("campaign", adminGrants.map((g) => `signals-added-${g.id}`));
+    const sentKeys = new Set((sent ?? []).map((r) => r.campaign));
+    for (const g of adminGrants) g.emailed = sentKeys.has(`signals-added-${g.id}`);
   }
   const signalLimits: Record<string, number> = {};
   for (const row of signalConfig.data ?? []) {
@@ -50,7 +69,7 @@ export async function GET(
       signalLimits[row.key.replace("signals_per_month_", "")] = n;
     }
   }
-  return NextResponse.json({ ...data, academy, signalLimits, signalBonus });
+  return NextResponse.json({ ...data, academy, signalLimits, signalBonus, adminGrants });
 }
 
 const VALID_TIERS = ["free", "starter", "plus", "pro"] as const;
